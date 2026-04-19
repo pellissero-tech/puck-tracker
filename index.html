@@ -9,10 +9,7 @@
 <link rel="manifest" href="manifest.json">
 <title>PUCK TRACKER</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Barlow+Condensed:wght@500;700;900&display=swap" rel="stylesheet">
-
-<!-- TensorFlow.js — runs 100% on-device, no API calls -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -21,30 +18,15 @@
   --text:#cde8f0;--dim:#3a6070;--green:#00ff88;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Barlow Condensed',sans-serif;touch-action:manipulation;}
-
-/* ── LOADING SCREEN ── */
-#loadScreen{
-  position:fixed;inset:0;z-index:1000;
-  background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
-  transition:opacity 0.5s;
-}
+#loadScreen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.5s;}
 .load-logo{font-family:'Bebas Neue';font-size:3rem;letter-spacing:8px;color:var(--accent);text-shadow:0 0 40px rgba(0,220,255,0.6);}
 .load-logo em{color:var(--red);font-style:normal;}
 .load-bar-wrap{width:240px;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
 .load-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--red));border-radius:2px;transition:width 0.3s ease;}
 .load-status{font-family:'JetBrains Mono';font-size:0.68rem;letter-spacing:2px;color:var(--dim);}
 .load-note{font-family:'JetBrains Mono';font-size:0.6rem;color:rgba(0,220,255,0.25);letter-spacing:1px;text-align:center;max-width:260px;line-height:1.7;}
-
-/* ── LAYOUT ── */
 #app{display:flex;flex-direction:column;height:100%;opacity:0;transition:opacity 0.5s;}
-
-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 16px;
-  background:var(--panel);border-bottom:1px solid var(--border);
-  flex-shrink:0;
-}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;}
 .logo{font-family:'Bebas Neue';font-size:1.5rem;letter-spacing:5px;color:var(--accent);}
 .logo em{color:var(--red);font-style:normal;}
 .badges{display:flex;gap:8px;align-items:center;}
@@ -52,78 +34,39 @@ header{
 .badge.on{color:var(--green);border-color:rgba(0,255,136,0.3);animation:blink 2s infinite;}
 .badge.warn{color:var(--gold);border-color:rgba(255,192,64,0.3);}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.5}}
-
-/* VIDEO + CANVAS STACK */
 .video-wrap{position:relative;flex:1;background:#000;overflow:hidden;}
 #videoEl{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 #overlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
-
-/* HUD */
 .speed-hud{position:absolute;top:14px;left:14px;z-index:3;pointer-events:none;}
 .speed-num{font-family:'Bebas Neue';font-size:4.5rem;line-height:1;color:var(--accent);text-shadow:0 0 30px rgba(0,220,255,0.7);transition:color 0.15s;}
 .speed-num.fast{color:var(--red);text-shadow:0 0 30px rgba(255,60,90,0.7);}
 .speed-unit{font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:3px;color:var(--dim);}
-
-.conf-badge{
-  position:absolute;top:14px;right:14px;z-index:3;
-  font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:2px;
-  padding:5px 12px;border-radius:2px;
-  background:rgba(0,0,0,0.5);border:1px solid var(--border);
-  color:var(--dim);backdrop-filter:blur(4px);
-  transition:all 0.2s;
-}
+.conf-badge{position:absolute;top:14px;right:14px;z-index:3;font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:2px;padding:5px 12px;border-radius:2px;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:var(--dim);backdrop-filter:blur(4px);transition:all 0.2s;}
 .conf-badge.detected{color:var(--accent);border-color:rgba(0,220,255,0.4);}
-
-/* TRAJECTORY */
-#overlayCanvas{image-rendering:pixelated;}
-
-/* BOTTOM PANEL */
-.bottom{
-  background:var(--panel);border-top:1px solid var(--border);
-  padding:10px 16px;flex-shrink:0;
-}
+.bottom{background:var(--panel);border-top:1px solid var(--border);padding:10px 16px;flex-shrink:0;}
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}
 .stat-box{text-align:center;}
 .stat-v{font-family:'Bebas Neue';font-size:1.6rem;line-height:1;color:var(--accent);}
 .stat-v.r{color:var(--red)}.stat-v.g{color:var(--gold)}.stat-v.gr{color:var(--green)}
 .stat-l{font-family:'JetBrains Mono';font-size:0.5rem;letter-spacing:1px;color:var(--dim);text-transform:uppercase;}
-
-/* CONTROLS */
 .controls{display:flex;gap:8px;align-items:center;}
 .btn{font-family:'Bebas Neue';letter-spacing:3px;font-size:0.95rem;padding:10px 16px;border-radius:4px;border:none;cursor:pointer;transition:all 0.15s;flex-shrink:0;}
 .btn-start{background:var(--accent);color:#000;}
-.btn-start:active{transform:scale(0.97);}
 .btn-stop{background:var(--red);color:#fff;}
 .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);font-size:0.8rem;}
-.btn-ghost:active{color:var(--text);}
-
-.cam-sel{
-  flex:1;background:#111820;color:var(--text);
-  border:1px solid var(--border);border-radius:4px;
-  font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:1px;
-  padding:8px 10px;outline:none;min-width:0;
-}
-
-/* MINI GOAL (side drawer on landscape) */
+.cam-sel{flex:1;background:#111820;color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:1px;padding:8px 10px;outline:none;min-width:0;}
 .goal-wrap{display:flex;align-items:center;gap:10px;margin-top:8px;}
 .goal-lbl{font-family:'JetBrains Mono';font-size:0.55rem;letter-spacing:1.5px;color:var(--dim);writing-mode:vertical-rl;transform:rotate(180deg);flex-shrink:0;}
-.mini-goal{
-  position:relative;flex:1;aspect-ratio:5/2;
-  background:#060e14;border:2px solid #cc2200;border-radius:2px;overflow:hidden;
-}
+.mini-goal{position:relative;flex:1;aspect-ratio:5/2;background:#060e14;border:2px solid #cc2200;border-radius:2px;overflow:hidden;}
 .mini-goal::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,0.04) 0,rgba(255,255,255,0.04) 1px,transparent 1px,transparent 28px),repeating-linear-gradient(90deg,rgba(255,255,255,0.04) 0,rgba(255,255,255,0.04) 1px,transparent 1px,transparent 28px);background-size:28px 28px;}
 .sdot{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);animation:di 0.3s ease;}
 .sdot.g{background:var(--red);box-shadow:0 0 6px var(--red);}
 .sdot.s{background:var(--accent);box-shadow:0 0 6px var(--accent);}
 @keyframes di{0%{transform:translate(-50%,-50%) scale(0)}60%{transform:translate(-50%,-50%) scale(1.5)}100%{transform:translate(-50%,-50%) scale(1)}}
-
-/* CORNER FRAMES */
 .corners{position:absolute;inset:12px;pointer-events:none;z-index:3;}
 .c{position:absolute;width:24px;height:24px;border-color:rgba(0,220,255,0.6);border-style:solid;}
 .c.tl{top:0;left:0;border-width:2px 0 0 2px}.c.tr{top:0;right:0;border-width:2px 2px 0 0}
 .c.bl{bottom:0;left:0;border-width:0 0 2px 2px}.c.br{bottom:0;right:0;border-width:0 2px 2px 0}
-
-/* CALIBRATION MODAL */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:24px;width:300px;max-width:90vw;}
 .modal h3{font-family:'Bebas Neue';font-size:1.4rem;letter-spacing:4px;color:var(--accent);margin-bottom:16px;}
@@ -131,21 +74,18 @@ header{
 .modal input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'JetBrains Mono';font-size:1rem;padding:10px 12px;outline:none;margin-bottom:16px;}
 .modal input:focus{border-color:var(--accent);}
 .modal-note{font-family:'JetBrains Mono';font-size:0.6rem;color:var(--dim);line-height:1.7;margin-bottom:16px;}
-
 .hidden{display:none!important;}
 </style>
 </head>
 <body>
 
-<!-- LOADING SCREEN -->
 <div id="loadScreen">
   <div class="load-logo">PUCK <em>TRACKER</em></div>
   <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
   <div class="load-status" id="loadStatus">Inizializzazione...</div>
-  <div class="load-note">Il modello AI gira interamente sul tuo dispositivo.<br>Nessuna connessione internet richiesta dopo il primo avvio.</div>
+  <div class="load-note">Modello YOLOv8 on-device.<br>Nessuna API richiesta.</div>
 </div>
 
-<!-- MAIN APP -->
 <div id="app">
   <header>
     <div class="logo">PUCK <em>TRACKER</em></div>
@@ -159,17 +99,14 @@ header{
   <div class="video-wrap">
     <video id="videoEl" autoplay playsinline muted></video>
     <canvas id="overlayCanvas"></canvas>
-
     <div class="corners">
       <div class="c tl"></div><div class="c tr"></div>
       <div class="c bl"></div><div class="c br"></div>
     </div>
-
     <div class="speed-hud">
       <div class="speed-num" id="speedNum">—</div>
       <div class="speed-unit">KM/H</div>
     </div>
-
     <div class="conf-badge" id="confBadge">NO PUCK</div>
   </div>
 
@@ -180,12 +117,10 @@ header{
       <div class="stat-box"><div class="stat-v r" id="sGoals">0</div><div class="stat-l">GOAL</div></div>
       <div class="stat-box"><div class="stat-v gr" id="sShots">0</div><div class="stat-l">TIRI</div></div>
     </div>
-
     <div class="goal-wrap">
       <div class="goal-lbl">PORTA</div>
       <div class="mini-goal" id="miniGoal"></div>
     </div>
-
     <div class="controls" style="margin-top:10px;">
       <select class="cam-sel" id="camSel"></select>
       <button class="btn btn-start" id="startBtn" onclick="startCam()">▶ START</button>
@@ -196,80 +131,78 @@ header{
   </div>
 </div>
 
-<!-- CALIBRATION MODAL -->
 <div class="modal-bg hidden" id="calibModal">
   <div class="modal">
     <h3>Calibrazione</h3>
     <label>Larghezza porta reale (cm)</label>
     <input type="number" id="goalWidthCm" value="183" min="50" max="400">
-    <label>Soglia confidenza rilevamento (%)</label>
-    <input type="number" id="confThreshold" value="55" min="10" max="95">
+    <label>Confidenza minima (%)</label>
+    <input type="number" id="confThreshold" value="35" min="10" max="95">
     <div class="modal-note">
-      La larghezza della porta serve a convertire il movimento in pixel nella velocità reale in km/h.<br>
-      Hockey su ghiaccio NHL: 183 cm · IIHF: 183 cm · Street hockey: variabile
+      Porta NHL/IIHF: 183 cm · Street hockey: variabile.<br>
+      Abbassa la confidenza se il puck non viene rilevato.
     </div>
     <button class="btn btn-start" style="width:100%" onclick="hideCalib()">✓ SALVA</button>
   </div>
 </div>
 
 <script>
-// ════════════════════════════════════════════════════════
-//  PUCK TRACKER — TensorFlow.js on-device inference
-//  Zero API calls · Works offline after first load
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════
+//  PUCK TRACKER — YOLOv8 TFjs Graph Model
+//  Classi dataset: stick(0) -(1) green_biscuit(2)
+//                  net(3) puck(4) Snipes_Off(5)
+//                  Snipes_On(6) stick_blade(7) — 7 classi totali
+// ══════════════════════════════════════════════════
 
-const MODEL_PATH = './tfjs_model/model.json'; // <-- punta al tuo modello esportato da Colab
-const IMG_SIZE   = 320;
+const MODEL_PATH  = './tfjs_model/model.json';
+const IMG_SIZE    = 320;
+// Indici classi puck nel dataset (4=puck, 2=green biscuit)
+const PUCK_CLASSES = new Set([2, 4]);
+const CLASS_NAMES  = ['stick','-','green_biscuit','net','puck','Snipes_Off','Snipes_On','stick_blade'];
 
-// ── State ──
 const S = {
   model: null, stream: null,
   running: false, frameCount: 0,
   shots: 0, goals: 0, maxSpeed: 0,
-  history: [],           // [{x,y,t}] puck positions
+  history: [],
   lastPos: null, lastTime: null,
   velocity: 0,
   goalWidthCm: 183,
-  confThreshold: 0.55,
-  classNames: ['puck_black','puck_colored'],
+  confThreshold: 0.35,
   inferring: false,
 };
 
-// ── DOM ──
 const $ = id => document.getElementById(id);
-const videoEl   = $('videoEl');
-const canvas    = $('overlayCanvas');
-const ctx       = canvas.getContext('2d');
-const speedNum  = $('speedNum');
-const confBadge = $('confBadge');
-const fpsBadge  = $('fpsBadge');
-const camBadge  = $('camBadge');
-const modelBadge= $('modelBadge');
-const miniGoal  = $('miniGoal');
+const videoEl    = $('videoEl');
+const canvas     = $('overlayCanvas');
+const ctx        = canvas.getContext('2d');
+const speedNum   = $('speedNum');
+const confBadge  = $('confBadge');
+const fpsBadge   = $('fpsBadge');
+const camBadge   = $('camBadge');
+const modelBadge = $('modelBadge');
+const miniGoal   = $('miniGoal');
 
-// ════════════════════════════════════════════════════════
-//  BOOT — load model then show app
-// ════════════════════════════════════════════════════════
+// ── BOOT ──
 async function boot() {
   setLoad(10, 'Caricamento TensorFlow.js...');
   await tf.ready();
-  setLoad(30, 'Inizializzazione GPU/WebGL...');
+  setLoad(30, 'WebGL pronto...');
 
-  // Try to load custom model; fall back to demo mode
   try {
-    setLoad(50, 'Caricamento modello puck...');
-    S.model = await tf.loadLayersModel(MODEL_PATH);
-    setLoad(80, 'Warming up...');
-    // Warm-up inference
+    setLoad(50, 'Caricamento modello YOLOv8...');
+    // YOLOv8 TFjs usa loadGraphModel, NON loadLayersModel
+    S.model = await tf.loadGraphModel(MODEL_PATH);
+    setLoad(80, 'Warm-up...');
+    // Warm-up: prima inferenza è sempre lenta
     const dummy = tf.zeros([1, IMG_SIZE, IMG_SIZE, 3]);
-    const _ = S.model.predict(dummy);
+    await S.model.executeAsync(dummy);
     dummy.dispose();
     setLoad(95, 'Pronto!');
-    modelBadge.textContent = 'AI ON';
+    modelBadge.textContent = 'YOLO ON';
     modelBadge.className = 'badge on';
   } catch(e) {
-    // Model not found → use fallback CV detection
-    console.warn('Modello non trovato, uso rilevamento classico:', e.message);
+    console.warn('Modello non trovato:', e.message);
     setLoad(80, 'Modalità CV classica...');
     S.model = null;
     modelBadge.textContent = 'CV MODE';
@@ -279,7 +212,6 @@ async function boot() {
   await enumCams();
   setLoad(100, 'Avvio!');
   await sleep(400);
-
   $('loadScreen').style.opacity = '0';
   $('app').style.opacity = '1';
   setTimeout(() => $('loadScreen').style.display = 'none', 500);
@@ -290,9 +222,7 @@ function setLoad(pct, msg) {
   $('loadStatus').textContent = msg;
 }
 
-// ════════════════════════════════════════════════════════
-//  CAMERAS
-// ════════════════════════════════════════════════════════
+// ── CAMERAS ──
 async function enumCams() {
   try {
     await navigator.mediaDevices.getUserMedia({video:true});
@@ -314,8 +244,8 @@ async function enumCams() {
 async function startCam() {
   const deviceId = $('camSel').value;
   const constraints = { video: deviceId
-    ? {deviceId:{exact:deviceId}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60}}
-    : {facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60}} };
+    ? {deviceId:{exact:deviceId}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30}}
+    : {facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30}} };
   try {
     S.stream = await navigator.mediaDevices.getUserMedia(constraints);
     videoEl.srcObject = S.stream;
@@ -324,8 +254,10 @@ async function startCam() {
     $('startBtn').classList.add('hidden');
     $('stopBtn').classList.remove('hidden');
     camBadge.textContent = 'CAM ON'; camBadge.className = 'badge on';
-    videoEl.addEventListener('loadedmetadata', resizeCanvas, {once:true});
-    // FPS counter
+    videoEl.addEventListener('loadedmetadata', () => {
+      canvas.width = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+    }, {once:true});
     S._fpsTimer = setInterval(() => {
       fpsBadge.textContent = S.frameCount + ' FPS';
       S.frameCount = 0;
@@ -344,24 +276,16 @@ function stopCam() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 }
 
-function resizeCanvas() {
-  canvas.width  = videoEl.videoWidth;
-  canvas.height = videoEl.videoHeight;
-}
-
-// ════════════════════════════════════════════════════════
-//  MAIN LOOP
-// ════════════════════════════════════════════════════════
+// ── MAIN LOOP ──
 async function loop() {
   if (!S.running) return;
   S.frameCount++;
 
-  // Run inference every 3 frames (balance speed vs accuracy)
   if (S.frameCount % 3 === 0 && !S.inferring) {
     S.inferring = true;
     try {
-      const result = S.model ? await inferTFJS() : detectCV();
-      if (result) processDetection(result);
+      const det = S.model ? await inferYOLO() : detectCV();
+      if (det) processDetection(det);
       else noPuck();
     } catch(e) { console.warn(e); }
     S.inferring = false;
@@ -371,56 +295,62 @@ async function loop() {
   requestAnimationFrame(loop);
 }
 
-// ════════════════════════════════════════════════════════
-//  TENSORFLOW.JS INFERENCE
-// ════════════════════════════════════════════════════════
-async function inferTFJS() {
-  return tf.tidy(() => {
-    // Capture frame → tensor
-    const tensor = tf.browser.fromPixels(videoEl)
+// ── YOLOV8 INFERENCE ──
+async function inferYOLO() {
+  if (videoEl.readyState < 2) return null;
+
+  const [det] = await tf.tidy(() => {
+    // Preprocessing: video → [1, 320, 320, 3] float32 0-1
+    const img = tf.browser.fromPixels(videoEl)
       .resizeBilinear([IMG_SIZE, IMG_SIZE])
       .div(255.0)
-      .expandDims(0); // [1, 320, 320, 3]
+      .expandDims(0);
 
-    const preds = S.model.predict(tensor);
-
-    // Handle both single output and multi-output models
-    let clsProbs, bboxRaw;
-    if (Array.isArray(preds)) {
-      // Multi-output: [classification, bbox]
-      clsProbs = preds[0].dataSync();
-      bboxRaw  = preds[1].dataSync(); // [ymin, xmin, ymax, xmax] normalized
-    } else {
-      clsProbs = preds.dataSync();
-      bboxRaw  = null;
-    }
-
-    const maxIdx  = clsProbs.indexOf(Math.max(...clsProbs));
-    const maxConf = clsProbs[maxIdx];
-    const isBackground = maxIdx >= S.classNames.length;
-
-    if (isBackground || maxConf < S.confThreshold) return null;
-
-    let x = 0.5, y = 0.5;
-    if (bboxRaw) {
-      const [ymin, xmin, ymax, xmax] = bboxRaw;
-      x = (xmin + xmax) / 2;
-      y = (ymin + ymax) / 2;
-    }
-
-    return {
-      x, y,
-      confidence: maxConf,
-      type: S.classNames[maxIdx] || 'puck',
-      bboxRaw,
-    };
+    // YOLOv8 TFjs output: [1, num_classes+4, num_anchors]
+    // formato: [x_center, y_center, width, height, class0_conf, class1_conf, ...]
+    const raw = S.model.execute(img);
+    return [raw];
   });
+
+  const data = await det.array();
+  det.dispose();
+
+  // data[0] shape: [num_classes+4, num_anchors] → trasponi in [num_anchors, num_classes+4]
+  const output = data[0]; // [84, 8400] o simile
+  const numAnchors = output[0].length;
+  const numClasses = output.length - 4;
+
+  let bestConf = 0, bestX = 0, bestY = 0, bestW = 0, bestH = 0, bestCls = -1;
+
+  for (let a = 0; a < numAnchors; a++) {
+    // Trova la classe con confidenza massima tra le classi puck
+    for (const cls of PUCK_CLASSES) {
+      if (cls >= numClasses) continue;
+      const conf = output[4 + cls][a];
+      if (conf > bestConf && conf > S.confThreshold) {
+        bestConf = conf;
+        bestX = output[0][a] / IMG_SIZE;
+        bestY = output[1][a] / IMG_SIZE;
+        bestW = output[2][a] / IMG_SIZE;
+        bestH = output[3][a] / IMG_SIZE;
+        bestCls = cls;
+      }
+    }
+  }
+
+  if (bestCls < 0) return null;
+
+  return {
+    x: bestX,
+    y: bestY,
+    w: bestW,
+    h: bestH,
+    confidence: bestConf,
+    type: bestCls === 2 ? 'colored_street' : 'black_ice',
+  };
 }
 
-// ════════════════════════════════════════════════════════
-//  FALLBACK: Classic Computer Vision (no model needed)
-//  Works while model is being trained
-// ════════════════════════════════════════════════════════
+// ── FALLBACK CV ──
 const cvCanvas = document.createElement('canvas');
 const cvCtx    = cvCanvas.getContext('2d');
 
@@ -429,114 +359,73 @@ function detectCV() {
   const W = 320, H = 180;
   cvCanvas.width = W; cvCanvas.height = H;
   cvCtx.drawImage(videoEl, 0, 0, W, H);
-  const imageData = cvCtx.getImageData(0, 0, W, H);
-  const data = imageData.data;
+  const data = cvCtx.getImageData(0, 0, W, H).data;
 
-  // Method: find darkest circular cluster (black puck on light ice)
-  // or brightest colored blob (orange/yellow puck on dark asphalt)
-  const goalWidthCm = S.goalWidthCm;
-
-  // Pass 1: dark object detection (black puck)
-  let darkMinX=W,darkMinY=H,darkMaxX=0,darkMaxY=0,darkCount=0;
-  // Pass 2: colored object detection (orange puck)
-  let colMinX=W,colMinY=H,colMaxX=0,colMaxY=0,colCount=0;
+  let dMinX=W,dMinY=H,dMaxX=0,dMaxY=0,dCount=0;
+  let cMinX=W,cMinY=H,cMaxX=0,cMaxY=0,cCount=0;
 
   for (let i=0; i<data.length; i+=4) {
-    const r=data[i], g=data[i+1], b=data[i+2];
-    const px = (i/4) % W;
-    const py = Math.floor((i/4) / W);
-
-    // Dark pixel on bright background (ice)
-    const brightness = (r+g+b)/3;
-    if (brightness < 60 && r<80 && g<80 && b<80) {
-      darkMinX=Math.min(darkMinX,px); darkMaxX=Math.max(darkMaxX,px);
-      darkMinY=Math.min(darkMinY,py); darkMaxY=Math.max(darkMaxY,py);
-      darkCount++;
+    const r=data[i],g=data[i+1],b=data[i+2];
+    const px=(i/4)%W, py=Math.floor((i/4)/W);
+    const br=(r+g+b)/3;
+    if (br<60&&r<80&&g<80&&b<80) {
+      dMinX=Math.min(dMinX,px);dMaxX=Math.max(dMaxX,px);
+      dMinY=Math.min(dMinY,py);dMaxY=Math.max(dMaxY,py);dCount++;
     }
-
-    // Orange/yellow colored puck
-    if (r>160 && g>80 && g<160 && b<80) {
-      colMinX=Math.min(colMinX,px); colMaxX=Math.max(colMaxX,px);
-      colMinY=Math.min(colMinY,py); colMaxY=Math.max(colMaxY,py);
-      colCount++;
+    if (r>160&&g>80&&g<160&&b<80) {
+      cMinX=Math.min(cMinX,px);cMaxX=Math.max(cMaxX,px);
+      cMinY=Math.min(cMinY,py);cMaxY=Math.max(cMaxY,py);cCount++;
     }
   }
 
-  // Check if dark cluster is puck-sized (~2-8% of frame width)
-  const darkW = darkMaxX-darkMinX, darkH = darkMaxY-darkMinY;
-  const colW  = colMaxX-colMinX,  colH  = colMaxY-colMinY;
-  const minSize=4, maxSize=W*0.12;
+  const minS=4,maxS=W*0.12;
+  const dW=dMaxX-dMinX,dH=dMaxY-dMinY;
+  const cW=cMaxX-cMinX,cH=cMaxY-cMinY;
 
-  if (darkCount > 8 && darkW > minSize && darkW < maxSize && darkH > minSize && darkH < maxSize) {
-    const aspect = darkW/Math.max(darkH,1);
-    if (aspect > 0.4 && aspect < 2.5) {
-      return {
-        x: ((darkMinX+darkMaxX)/2)/W,
-        y: ((darkMinY+darkMaxY)/2)/H,
-        confidence: Math.min(darkCount/80, 0.9),
-        type: 'black_ice',
-        bboxRaw: [darkMinY/H, darkMinX/W, darkMaxY/H, darkMaxX/W],
-      };
-    }
-  }
+  if (dCount>8&&dW>minS&&dW<maxS&&dH>minS&&dH<maxS&&dW/Math.max(dH,1)>0.4&&dW/Math.max(dH,1)<2.5)
+    return {x:((dMinX+dMaxX)/2)/W,y:((dMinY+dMaxY)/2)/H,w:dW/W,h:dH/H,confidence:Math.min(dCount/80,0.9),type:'black_ice'};
 
-  if (colCount > 8 && colW > minSize && colW < maxSize && colH > minSize && colH < maxSize) {
-    return {
-      x: ((colMinX+colMaxX)/2)/W,
-      y: ((colMinY+colMaxY)/2)/H,
-      confidence: Math.min(colCount/60, 0.85),
-      type: 'colored_street',
-      bboxRaw: [colMinY/H, colMinX/W, colMaxY/H, colMaxX/W],
-    };
-  }
+  if (cCount>8&&cW>minS&&cW<maxS&&cH>minS&&cH<maxS)
+    return {x:((cMinX+cMaxX)/2)/W,y:((cMinY+cMaxY)/2)/H,w:cW/W,h:cH/H,confidence:Math.min(cCount/60,0.85),type:'colored_street'};
 
   return null;
 }
 
-// ════════════════════════════════════════════════════════
-//  PROCESS DETECTION → speed + tracking
-// ════════════════════════════════════════════════════════
+// ── PROCESS DETECTION ──
 function processDetection(det) {
   const px = det.x * canvas.width;
   const py = det.y * canvas.height;
   const now = Date.now();
 
-  // Confidence UI
   const pct = Math.round(det.confidence * 100);
   const lbl = det.type === 'colored_street' ? 'STREET' : 'ICE';
-  confBadge.textContent  = `⬤ ${lbl} ${pct}%`;
-  confBadge.className    = 'conf-badge detected';
+  confBadge.textContent = `⬤ ${lbl} ${pct}%`;
+  confBadge.className = 'conf-badge detected';
 
-  // Speed calculation
+  // Velocità
   if (S.lastPos && S.lastTime) {
     const dx = px - S.lastPos.x, dy = py - S.lastPos.y;
     const distPx = Math.sqrt(dx*dx + dy*dy);
     const dt = (now - S.lastTime) / 1000;
-
     if (dt > 0 && distPx > 2) {
-      // Scale: goal width in pixels → real cm
-      const pxPerCm = det.bboxRaw
-        ? ((det.bboxRaw[3]-det.bboxRaw[1]) * canvas.width) / S.goalWidthCm * 5
+      const pxPerCm = det.w > 0
+        ? (det.w * canvas.width) / (S.goalWidthCm * 0.15)
         : (canvas.width * 0.38) / S.goalWidthCm;
-
-      const speedKmh = (distPx / pxPerCm) / dt * 0.036;
-      if (speedKmh > 2 && speedKmh < 220) {
-        S.velocity = Math.round(speedKmh);
+      const kmh = (distPx / pxPerCm) / dt * 0.036;
+      if (kmh > 2 && kmh < 220) {
+        S.velocity = Math.round(kmh);
         updateSpeedUI(S.velocity);
       }
     }
   }
 
-  S.lastPos  = {x:px, y:py};
-  S.lastTime = now;
-  S.history.push({x:px, y:py, t:now});
+  S.lastPos = {x:px,y:py}; S.lastTime = now;
+  S.history.push({x:px,y:py,t:now});
   if (S.history.length > 30) S.history.shift();
 
-  // Auto goal detection: puck in bottom 1/3 of frame + moving fast
+  // Auto goal detection
   if (det.y > 0.6 && S.velocity > 20) {
-    const gx = det.x;
-    const gy = (det.y - 0.6) / 0.4;
-    logShot(S.velocity, gx, gy, S.velocity > 50, det.type);
+    logShot(S.velocity, det.x, (det.y-0.6)/0.4, S.velocity > 50, det.type);
   }
 }
 
@@ -545,110 +434,75 @@ function noPuck() {
   confBadge.className = 'conf-badge';
 }
 
-// ════════════════════════════════════════════════════════
-//  SPEED UI
-// ════════════════════════════════════════════════════════
 function updateSpeedUI(kmh) {
   speedNum.textContent = kmh;
   speedNum.className = 'speed-num' + (kmh > 100 ? ' fast' : '');
   $('sSpeed').textContent = kmh;
-  if (kmh > S.maxSpeed) {
-    S.maxSpeed = kmh;
-    $('sMax').textContent = kmh;
-  }
+  if (kmh > S.maxSpeed) { S.maxSpeed = kmh; $('sMax').textContent = kmh; }
 }
 
-// ════════════════════════════════════════════════════════
-//  SHOT LOG
-// ════════════════════════════════════════════════════════
 let lastShotTime = 0;
 function logShot(speed, gx, gy, isGoal, type) {
-  // Debounce: max 1 tiro ogni 2 secondi
   const now = Date.now();
   if (now - lastShotTime < 2000) return;
   lastShotTime = now;
-
   S.shots++; if (isGoal) S.goals++;
   $('sShots').textContent = S.shots;
   $('sGoals').textContent = S.goals;
-
-  // Dot on mini goal
   const dot = document.createElement('div');
   dot.className = 'sdot ' + (isGoal ? 'g' : 's');
-  dot.style.left = (gx*100)+'%';
-  dot.style.top  = (gy*100)+'%';
+  dot.style.left = (gx*100)+'%'; dot.style.top = (gy*100)+'%';
   miniGoal.appendChild(dot);
 }
 
-// ════════════════════════════════════════════════════════
-//  CANVAS OVERLAY
-// ════════════════════════════════════════════════════════
+// ── OVERLAY ──
 function drawOverlay() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if (S.history.length < 2) return;
 
-  // Trajectory trail
   for (let i=1; i<S.history.length; i++) {
-    const a=S.history[i-1], b=S.history[i];
-    const alpha = i / S.history.length;
-    ctx.beginPath();
-    ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle = `rgba(0,220,255,${alpha*0.7})`;
-    ctx.lineWidth = alpha * 4;
-    ctx.stroke();
+    const a=S.history[i-1],b=S.history[i];
+    const alpha=i/S.history.length;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=`rgba(0,220,255,${alpha*0.7})`;
+    ctx.lineWidth=alpha*4; ctx.stroke();
   }
 
   const last = S.history[S.history.length-1];
-
-  // Puck marker
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, 16, 0, Math.PI*2);
-  ctx.strokeStyle = 'rgba(0,220,255,0.8)';
-  ctx.lineWidth = 2; ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, 6, 0, Math.PI*2);
-  ctx.fillStyle = '#00dcff'; ctx.fill();
-
-  // Speed label
+  ctx.beginPath(); ctx.arc(last.x,last.y,16,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,220,255,0.8)'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(last.x,last.y,6,0,Math.PI*2);
+  ctx.fillStyle='#00dcff'; ctx.fill();
   if (S.velocity > 0) {
-    ctx.font = 'bold 14px "JetBrains Mono"';
-    ctx.fillStyle = S.velocity > 100 ? '#ff3c5a' : '#00dcff';
+    ctx.font='bold 14px "JetBrains Mono"';
+    ctx.fillStyle=S.velocity>100?'#ff3c5a':'#00dcff';
     ctx.fillText(S.velocity+' km/h', last.x+20, last.y-10);
   }
 }
 
-// ════════════════════════════════════════════════════════
-//  CALIBRATION
-// ════════════════════════════════════════════════════════
+// ── CALIBRATION ──
 function showCalib() { $('calibModal').classList.remove('hidden'); }
 function hideCalib() {
-  S.goalWidthCm   = parseFloat($('goalWidthCm').value)||183;
-  S.confThreshold = (parseInt($('confThreshold').value)||55) / 100;
+  S.goalWidthCm = parseFloat($('goalWidthCm').value)||183;
+  S.confThreshold = (parseInt($('confThreshold').value)||35)/100;
   $('calibModal').classList.add('hidden');
 }
 $('calibModal').addEventListener('click', e => { if(e.target===$('calibModal')) hideCalib(); });
 
 function resetStats() {
-  S.shots=0; S.goals=0; S.maxSpeed=0; S.velocity=0;
-  S.history=[]; S.lastPos=null; S.lastTime=null;
-  ['sSpeed','sMax','sGoals','sShots'].forEach(id => $(id).textContent='0');
-  speedNum.textContent='—'; speedNum.className='speed-num';
+  S.shots=0;S.goals=0;S.maxSpeed=0;S.velocity=0;
+  S.history=[];S.lastPos=null;S.lastTime=null;
+  ['sSpeed','sMax','sGoals','sShots'].forEach(id=>$(id).textContent='0');
+  speedNum.textContent='—';speedNum.className='speed-num';
   miniGoal.querySelectorAll('.sdot').forEach(d=>d.remove());
   ctx.clearRect(0,0,canvas.width,canvas.height);
 }
 
-// ════════════════════════════════════════════════════════
-//  PWA — Register Service Worker
-// ════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 
-// ── Utils ──
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-// ── Boot ──
 boot();
 </script>
 </body>
