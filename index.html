@@ -214,7 +214,7 @@ async function boot(){
     S.model=await tf.loadGraphModel(MODEL_PATH);
     setLoad(80,'Warm-up...');
     const d=tf.zeros([1,IMG_SIZE,IMG_SIZE,3]);
-    await S.model.executeAsync(d);
+    S.model.executeAsync(d);
     d.dispose();
     setLoad(95,'Pronto!');
     modelBadge.textContent='YOLO ON';modelBadge.className='badge on';
