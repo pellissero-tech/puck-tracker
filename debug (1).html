@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PUCK TRACKER — DEBUG</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080c10;--panel:#0d1318;--accent:#00dcff;--red:#ff3c5a;--gold:#ffc040;--green:#00ff88;--dim:#3a6070;--text:#cde8f0;}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;padding:16px;min-height:100vh;}
+h1{font-size:1.2rem;color:var(--accent);letter-spacing:4px;margin-bottom:16px;text-transform:uppercase;}
+.layout{display:grid;grid-template-columns:1fr 320px;gap:16px;max-width:1200px;}
+.video-panel{display:flex;flex-direction:column;gap:10px;}
+.video-wrap{position:relative;background:#000;border-radius:6px;overflow:hidden;}
+#videoEl{width:100%;display:block;}
+#overlayCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.btn{font-family:monospace;font-size:0.75rem;padding:7px 12px;border-radius:4px;border:none;cursor:pointer;letter-spacing:1px;}
+.btn-blue{background:var(--accent);color:#000;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-gray{background:#1a2a3a;color:var(--text);border:1px solid var(--dim);}
+.btn-gold{background:rgba(255,192,64,0.15);color:var(--gold);border:1px solid rgba(255,192,64,0.3);}
+input[type=range]{flex:1;accent-color:var(--accent);}
+label{font-size:0.65rem;color:var(--dim);}
+.right-panel{display:flex;flex-direction:column;gap:10px;}
+.card{background:var(--panel);border:1px solid rgba(0,220,255,0.1);border-radius:6px;padding:12px;}
+.card-title{font-size:0.6rem;letter-spacing:2px;color:var(--accent);margin-bottom:10px;text-transform:uppercase;}
+.det-list{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto;}
+.det-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);}
+.det-item.highlight{background:rgba(0,220,255,0.07);border-color:rgba(0,220,255,0.25);}
+.det-item.net-item{background:rgba(255,60,90,0.07);border-color:rgba(255,60,90,0.25);}
+.det-item.pred-item{background:rgba(255,192,64,0.07);border-color:rgba(255,192,64,0.25);}
+.det-cls{font-size:0.65rem;flex:1;}
+.det-conf{font-size:0.8rem;font-weight:bold;min-width:44px;text-align:right;}
+.conf-bar{height:3px;border-radius:2px;margin-top:2px;background:rgba(255,255,255,0.06);}
+.conf-fill{height:100%;border-radius:2px;transition:width 0.1s;}
+#logBox{font-size:0.58rem;color:var(--dim);line-height:1.8;max-height:180px;overflow-y:auto;white-space:pre-wrap;}
+.log-info{color:var(--dim);}
+.log-ok{color:var(--green);}
+.log-warn{color:var(--gold);}
+.log-err{color:var(--red);}
+.status-row{display:flex;gap:6px;flex-wrap:wrap;}
+.status-pill{font-size:0.55rem;padding:3px 7px;border-radius:10px;border:1px solid var(--dim);color:var(--dim);}
+.status-pill.on{color:var(--green);border-color:rgba(0,255,136,0.4);}
+.status-pill.warn{color:var(--gold);border-color:rgba(255,192,64,0.4);}
+.status-pill.err{color:var(--red);border-color:rgba(255,60,90,0.4);}
+.thresh-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.thresh-val{font-size:0.8rem;color:var(--accent);min-width:34px;}
+.color-key{display:flex;flex-direction:column;gap:3px;}
+.key-item{display:flex;align-items:center;gap:8px;font-size:0.6rem;}
+.key-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.key-item.disabled{opacity:0.25;text-decoration:line-through;}
+
+/* PREDICTION PANEL */
+.pred-info{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+.pred-box{background:rgba(255,192,64,0.06);border:1px solid rgba(255,192,64,0.15);border-radius:4px;padding:6px;text-align:center;}
+.pred-val{font-family:monospace;font-size:1rem;color:var(--gold);}
+.pred-lbl{font-size:0.5rem;color:var(--dim);letter-spacing:1px;text-transform:uppercase;}
+
+@media(max-width:800px){.layout{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<h1>🏒 Puck Tracker — Debug</h1>
+
+<div class="layout">
+  <div class="video-panel">
+    <div class="video-wrap">
+      <video id="videoEl" loop playsinline></video>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+    <div class="controls">
+      <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="loadVideo(event)">
+      <button class="btn btn-blue" onclick="$('fileInput').click()">📂 Carica Video</button>
+      <button class="btn btn-gray" id="playBtn" onclick="togglePlay()" disabled>▶ Play</button>
+      <button class="btn btn-gray" onclick="stepFrame()">⏭ +1 Frame</button>
+      <button class="btn btn-red" onclick="stopVideo()">■ Stop</button>
+      <button class="btn btn-gold" id="predBtn" onclick="togglePrediction()">◎ Pred ON</button>
+    </div>
+    <div class="controls">
+      <label>Velocità:</label>
+      <input type="range" id="speedRange" min="0.1" max="2" step="0.1" value="1" oninput="setSpeed(this.value)">
+      <span id="speedVal" style="font-size:0.65rem;color:var(--accent);min-width:28px;">1x</span>
+      <label style="margin-left:8px;">Conf:</label>
+      <input type="range" id="confRange" min="1" max="95" value="10" oninput="updateThresh(this.value)">
+      <span class="thresh-val" id="confVal">10%</span>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="card">
+      <div class="card-title">Stato</div>
+      <div class="status-row" id="statusRow">
+        <div class="status-pill" id="sTfjs">TF.js...</div>
+        <div class="status-pill" id="sModel">Modello...</div>
+        <div class="status-pill" id="sVideo">No Video</div>
+        <div class="status-pill" id="sFps">0 FPS</div>
+        <div class="status-pill" id="sPred">Pred OFF</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Rilevamenti</div>
+      <div class="det-list" id="detList">
+        <div style="font-size:0.6rem;color:var(--dim);">Carica un video...</div>
+      </div>
+    </div>
+
+    <!-- PREDICTION INFO -->
+    <div class="card" id="predCard">
+      <div class="card-title">◎ Predizione Traiettoria</div>
+      <div class="pred-info">
+        <div class="pred-box"><div class="pred-val" id="predVx">0</div><div class="pred-lbl">VX px/ms</div></div>
+        <div class="pred-box"><div class="pred-val" id="predVy">0</div><div class="pred-lbl">VY px/ms</div></div>
+        <div class="pred-box"><div class="pred-val" id="predLost">0</div><div class="pred-lbl">Frame persi</div></div>
+        <div class="pred-box"><div class="pred-val" id="predActive">NO</div><div class="pred-lbl">Predizione attiva</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Legenda Classi</div>
+      <div class="color-key" id="colorKey"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Log</div>
+      <div id="logBox"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════
+//  CONFIG — stesse classi del tracker
+// ══════════════════════════════════
+const MODEL_PATH  = './tfjs_model/model.json';
+const IMG_SIZE    = 320;
+
+// Classi attive (stesse del tracker principale)
+const PUCK_CLASSES = new Set([2, 4]);  // green_biscuit, puck
+const NET_CLASS    = 3;
+const ACTIVE_CLASSES = new Set([2, 3, 4]); // le uniche mostrate
+
+const CLASS_NAMES  = ['stick','-','green_biscuit','net','puck','Snipes_Off','Snipes_On','stick_blade'];
+const CLASS_COLORS = ['#ff9500','#444','#00ff88','#ff3c5a','#00dcff','#ffc040','#cc88ff','#ff6688'];
+const CLASS_LABELS = ['stick','—','🟢 puck colorato','🥅 rete','🏒 puck','Snipes Off','Snipes On','stick blade'];
+
+// ── State ──
+let model=null,running=false,frameCount=0,fpsTimer=null;
+let confThreshold=0.10,predictionEnabled=true;
+let lastPos=null,lastTime=null,vx=0,vy=0,lostFrames=0;
+const MAX_LOST=12;
+let history=[];
+
+const $=id=>document.getElementById(id);
+const videoEl=$('videoEl'),canvas=$('overlayCanvas'),ctx=canvas.getContext('2d');
+
+// ── INIT ──
+async function init(){
+  log('TensorFlow.js caricamento...','info');
+  await tf.ready();
+  log(`TF.js pronto — backend: ${tf.getBackend()}`,'ok');
+  $('sTfjs').textContent='TF.js ✓';$('sTfjs').className='status-pill on';
+  try{
+    log(`Caricamento modello...`,'info');
+    model=await tf.loadGraphModel(MODEL_PATH);
+    const d=tf.zeros([1,IMG_SIZE,IMG_SIZE,3]);
+    model.execute(d);d.dispose();
+    log('Modello caricato e warm-up OK','ok');
+    $('sModel').textContent='Modello ✓';$('sModel').className='status-pill on';
+  }catch(e){
+    log(`ERRORE modello: ${e.message}`,'err');
+    $('sModel').textContent='Modello ✗';$('sModel').className='status-pill err';
+  }
+  buildColorKey();
+}
+
+function buildColorKey(){
+  const key=$('colorKey');
+  CLASS_NAMES.forEach((name,i)=>{
+    const item=document.createElement('div');
+    item.className='key-item'+(ACTIVE_CLASSES.has(i)?'':' disabled');
+    item.innerHTML=`<div class="key-dot" style="background:${CLASS_COLORS[i]}"></div><span>${i}: ${CLASS_LABELS[i]}${ACTIVE_CLASSES.has(i)?'':' (disabilitato)'}</span>`;
+    key.appendChild(item);
+  });
+}
+
+// ── VIDEO ──
+function loadVideo(event){
+  const file=event.target.files[0];if(!file)return;
+  const url=URL.createObjectURL(file);
+  videoEl.src=url;videoEl.load();
+  videoEl.onloadedmetadata=()=>{
+    canvas.width=videoEl.videoWidth;canvas.height=videoEl.videoHeight;
+    $('playBtn').disabled=false;
+    $('sVideo').textContent=`${videoEl.videoWidth}×${videoEl.videoHeight}`;
+    $('sVideo').className='status-pill on';
+    log(`Video: ${file.name} (${videoEl.videoWidth}×${videoEl.videoHeight})`,'ok');
+  };
+}
+
+function togglePlay(){
+  if(videoEl.paused){videoEl.play();$('playBtn').textContent='⏸ Pausa';startLoop();}
+  else{videoEl.pause();$('playBtn').textContent='▶ Play';}
+}
+
+function stopVideo(){
+  videoEl.pause();videoEl.currentTime=0;
+  $('playBtn').textContent='▶ Play';running=false;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  history=[];lastPos=null;lastTime=null;vx=0;vy=0;lostFrames=0;
+}
+
+function stepFrame(){
+  if(!videoEl.src)return;
+  videoEl.currentTime+=1/30;
+  setTimeout(()=>runInference(),80);
+}
+
+function setSpeed(v){videoEl.playbackRate=parseFloat(v);$('speedVal').textContent=v+'x';}
+function updateThresh(v){confThreshold=parseInt(v)/100;$('confVal').textContent=v+'%';}
+
+function togglePrediction(){
+  predictionEnabled=!predictionEnabled;
+  $('predBtn').textContent=`◎ Pred ${predictionEnabled?'ON':'OFF'}`;
+  $('predBtn').style.opacity=predictionEnabled?'1':'0.5';
+  $('sPred').textContent=predictionEnabled?'Pred ON':'Pred OFF';
+  $('sPred').className='status-pill'+(predictionEnabled?' warn':'');
+}
+
+// ── LOOP ──
+function startLoop(){
+  running=true;frameCount=0;
+  fpsTimer=setInterval(()=>{$('sFps').textContent=frameCount+' FPS';frameCount=0;},1000);
+  loopStep();
+}
+
+async function loopStep(){
+  if(!running||videoEl.paused||videoEl.ended){clearInterval(fpsTimer);return;}
+  frameCount++;
+  await runInference();
+  requestAnimationFrame(loopStep);
+}
+
+// ── INFERENCE ──
+async function runInference(){
+  if(!model||videoEl.readyState<2)return;
+
+  const raw=tf.tidy(()=>{
+    const img=tf.browser.fromPixels(videoEl).resizeBilinear([IMG_SIZE,IMG_SIZE]).div(255.0).expandDims(0);
+    return model.execute(img);
+  });
+  const data=await raw.array();raw.dispose();
+
+  const output=data[0];
+  const numAnchors=output[0].length,numClasses=output.length-4;
+
+  // Collect detections — ONLY active classes
+  const detections=[];
+  for(let a=0;a<numAnchors;a++){
+    for(let c=0;c<numClasses;c++){
+      if(!ACTIVE_CLASSES.has(c))continue; // skip disabled classes
+      const conf=output[4+c][a];
+      if(conf>=confThreshold){
+        detections.push({
+          cls:c,conf,
+          cx:output[0][a]/IMG_SIZE,cy:output[1][a]/IMG_SIZE,
+          w:output[2][a]/IMG_SIZE,h:output[3][a]/IMG_SIZE,
+        });
+      }
+    }
+  }
+
+  detections.sort((a,b)=>b.conf-a.conf);
+
+  // Keep top 3 per active class
+  const kept=[],classCounts={};
+  for(const d of detections){
+    if((classCounts[d.cls]||0)<3){kept.push(d);classCounts[d.cls]=(classCounts[d.cls]||0)+1;}
+  }
+
+  // Find best puck
+  const bestPuck=kept.find(d=>PUCK_CLASSES.has(d.cls));
+
+  // Update velocity vector for prediction
+  if(bestPuck){
+    const px=bestPuck.cx*canvas.width,py=bestPuck.cy*canvas.height,now=Date.now();
+    if(lastPos&&lastTime){
+      const dt=(now-lastTime);
+      if(dt>0){vx=(px-lastPos.x)/dt;vy=(py-lastPos.y)/dt;}
+    }
+    lastPos={x:px,y:py};lastTime=Date.now();lostFrames=0;
+    history.push({x:px,y:py,predicted:false});
+    if(history.length>40)history.shift();
+  } else if(predictionEnabled&&lastPos&&lostFrames<MAX_LOST){
+    // Predict
+    const now=Date.now(),dt=now-(lastTime||now);
+    const predX=lastPos.x+vx*dt,predY=lastPos.y+vy*dt;
+    if(predX>0&&predX<canvas.width&&predY>0&&predY<canvas.height){
+      history.push({x:predX,y:predY,predicted:true});
+      if(history.length>40)history.shift();
+      // Add fake detection for display
+      kept.push({
+        cls:-1,conf:Math.max(0.1,0.9-lostFrames*0.07),
+        cx:predX/canvas.width,cy:predY/canvas.height,
+        w:0.04,h:0.04,predicted:true
+      });
+    }
+    lostFrames++;
+  } else {
+    lostFrames++;
+    if(lostFrames>MAX_LOST){history=[];lastPos=null;}
+  }
+
+  // Update prediction panel
+  $('predVx').textContent=vx.toFixed(2);
+  $('predVy').textContent=vy.toFixed(2);
+  $('predLost').textContent=lostFrames;
+  $('predActive').textContent=predictionEnabled&&lostFrames>0&&lostFrames<MAX_LOST?'SÌ':'NO';
+  $('predActive').style.color=predictionEnabled&&lostFrames>0&&lostFrames<MAX_LOST?'var(--gold)':'var(--dim)';
+
+  drawDetections(kept);
+  updateDetList(kept);
+}
+
+// ── DRAW ──
+function drawDetections(dets){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const W=canvas.width,H=canvas.height;
+
+  // Draw trajectory trail
+  if(history.length>1){
+    for(let i=1;i<history.length;i++){
+      const a=history[i-1],b=history[i],alpha=i/history.length;
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle=b.predicted?`rgba(255,192,64,${alpha*0.7})`:`rgba(0,220,255,${alpha*0.7})`;
+      ctx.lineWidth=alpha*3;ctx.stroke();
+    }
+    const last=history[history.length-1];
+    ctx.beginPath();ctx.arc(last.x,last.y,last.predicted?10:12,0,Math.PI*2);
+    ctx.strokeStyle=last.predicted?'rgba(255,192,64,0.8)':'rgba(0,220,255,0.8)';
+    ctx.lineWidth=2;ctx.stroke();
+  }
+
+  for(const d of dets){
+    if(d.predicted){
+      // Predicted position — dashed circle
+      ctx.beginPath();ctx.arc(d.cx*W,d.cy*H,18,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,192,64,0.6)';ctx.lineWidth=2;ctx.setLineDash([4,3]);
+      ctx.stroke();ctx.setLineDash([]);
+      ctx.font='bold 11px monospace';ctx.fillStyle='#ffc040';
+      ctx.fillText(`◎ PRED ${Math.round(d.conf*100)}%`,d.cx*W+22,d.cy*H-8);
+      continue;
+    }
+
+    const color=CLASS_COLORS[d.cls]||'#fff';
+    const x=(d.cx-d.w/2)*W,y=(d.cy-d.h/2)*H,w=d.w*W,h=d.h*H;
+    const isPuck=PUCK_CLASSES.has(d.cls),isNet=d.cls===NET_CLASS;
+
+    ctx.strokeStyle=color;
+    ctx.lineWidth=isPuck?3:isNet?2:1.5;
+    ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle=color+'15';ctx.fillRect(x,y,w,h);
+
+    const label=`${CLASS_LABELS[d.cls]||d.cls} ${Math.round(d.conf*100)}%`;
+    ctx.font=`bold ${isPuck?13:10}px monospace`;
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle=color;ctx.fillRect(x,y-17,tw+8,17);
+    ctx.fillStyle='#000';ctx.fillText(label,x+4,y-3);
+  }
+}
+
+// ── DET LIST ──
+function updateDetList(dets){
+  const list=$('detList');
+  const real=dets.filter(d=>!d.predicted);
+  if(real.length===0&&!dets.find(d=>d.predicted)){
+    list.innerHTML='<div style="font-size:0.6rem;color:var(--dim);">Nessun rilevamento</div>';
+    return;
+  }
+
+  const byClass={};
+  for(const d of dets){
+    const key=d.predicted?'pred':d.cls;
+    if(!byClass[key]||d.conf>byClass[key].conf)byClass[key]=d;
+  }
+
+  list.innerHTML='';
+  Object.values(byClass).sort((a,b)=>b.conf-a.conf).forEach(d=>{
+    const isPred=d.predicted;
+    const color=isPred?'#ffc040':(CLASS_COLORS[d.cls]||'#fff');
+    const isPuck=!isPred&&PUCK_CLASSES.has(d.cls);
+    const isNet=!isPred&&d.cls===NET_CLASS;
+    const item=document.createElement('div');
+    item.className='det-item'+(isPred?' pred-item':isPuck?' highlight':isNet?' net-item':'');
+    const name=isPred?'◎ PREDETTO':(CLASS_LABELS[d.cls]||d.cls);
+    const emoji=isPuck?'🏒':isNet?'🥅':isPred?'':' ';
+    item.innerHTML=`
+      <div style="width:9px;height:9px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div class="det-cls" style="color:${color};">${name} ${emoji}</div>
+        <div class="conf-bar"><div class="conf-fill" style="width:${d.conf*100}%;background:${color};"></div></div>
+      </div>
+      <div class="det-conf" style="color:${color};">${Math.round(d.conf*100)}%</div>`;
+    list.appendChild(item);
+  });
+}
+
+// ── LOG ──
+function log(msg,type='info'){
+  const box=$('logBox');
+  const span=document.createElement('span');
+  span.className='log-'+type;
+  span.textContent=`[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  box.appendChild(span);box.scrollTop=box.scrollHeight;
+}
+
+init();
+</script>
+</body>
+</html>
