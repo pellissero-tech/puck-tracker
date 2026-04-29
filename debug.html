@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PUCK TRACKER — DEBUG</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080c10;--panel:#0d1318;--accent:#00dcff;--red:#ff3c5a;--gold:#ffc040;--green:#00ff88;--dim:#3a6070;--text:#cde8f0;}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;padding:16px;min-height:100vh;}
+
+h1{font-family:sans-serif;font-size:1.4rem;color:var(--accent);letter-spacing:4px;margin-bottom:16px;text-transform:uppercase;}
+
+.layout{display:grid;grid-template-columns:1fr 340px;gap:16px;max-width:1200px;}
+
+/* VIDEO PANEL */
+.video-panel{display:flex;flex-direction:column;gap:10px;}
+.video-wrap{position:relative;background:#000;border-radius:6px;overflow:hidden;}
+#videoEl{width:100%;display:block;}
+#overlayCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.btn{font-family:monospace;font-size:0.8rem;padding:8px 14px;border-radius:4px;border:none;cursor:pointer;letter-spacing:1px;}
+.btn-blue{background:var(--accent);color:#000;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-gray{background:#1a2a3a;color:var(--text);border:1px solid var(--dim);}
+
+input[type=range]{flex:1;accent-color:var(--accent);}
+label{font-size:0.7rem;color:var(--dim);}
+
+/* RIGHT PANEL */
+.right-panel{display:flex;flex-direction:column;gap:10px;}
+
+.card{background:var(--panel);border:1px solid rgba(0,220,255,0.1);border-radius:6px;padding:12px;}
+.card-title{font-size:0.65rem;letter-spacing:2px;color:var(--accent);margin-bottom:10px;text-transform:uppercase;}
+
+/* DETECTION LIST */
+.det-list{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;}
+.det-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);}
+.det-item.highlight{background:rgba(0,220,255,0.08);border-color:rgba(0,220,255,0.3);}
+.det-cls{font-size:0.7rem;flex:1;color:var(--text);}
+.det-conf{font-size:0.85rem;font-weight:bold;min-width:50px;text-align:right;}
+.conf-bar{height:3px;border-radius:2px;margin-top:3px;background:var(--dim);}
+.conf-fill{height:100%;border-radius:2px;transition:width 0.1s;}
+
+/* LOG */
+#logBox{font-size:0.62rem;color:var(--dim);line-height:1.8;max-height:200px;overflow-y:auto;white-space:pre-wrap;}
+.log-info{color:var(--dim);}
+.log-ok{color:var(--green);}
+.log-warn{color:var(--gold);}
+.log-err{color:var(--red);}
+
+/* STATUS */
+.status-row{display:flex;gap:8px;flex-wrap:wrap;}
+.status-pill{font-size:0.6rem;padding:3px 8px;border-radius:10px;border:1px solid var(--dim);color:var(--dim);}
+.status-pill.on{color:var(--green);border-color:rgba(0,255,136,0.4);}
+.status-pill.warn{color:var(--gold);border-color:rgba(255,192,64,0.4);}
+.status-pill.err{color:var(--red);border-color:rgba(255,60,90,0.4);}
+
+/* CONF THRESHOLD */
+.thresh-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.thresh-val{font-size:0.85rem;color:var(--accent);min-width:36px;}
+
+/* COLOR KEY */
+.color-key{display:flex;flex-direction:column;gap:4px;}
+.key-item{display:flex;align-items:center;gap:8px;font-size:0.62rem;color:var(--dim);}
+.key-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+
+@media(max-width:800px){.layout{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<h1>🏒 Puck Tracker — Debug Tool</h1>
+
+<div class="layout">
+  <div class="video-panel">
+    <div class="video-wrap">
+      <video id="videoEl" loop playsinline></video>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+      <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="loadVideo(event)">
+      <button class="btn btn-blue" onclick="$('fileInput').click()">📂 Carica Video</button>
+      <button class="btn btn-gray" id="playBtn" onclick="togglePlay()" disabled>▶ Play</button>
+      <button class="btn btn-gray" onclick="stepFrame()">⏭ Frame</button>
+      <button class="btn btn-red" onclick="stopVideo()">■ Stop</button>
+    </div>
+
+    <div class="controls">
+      <label>Velocità:</label>
+      <input type="range" id="speedRange" min="0.1" max="2" step="0.1" value="1" oninput="setSpeed(this.value)">
+      <span id="speedVal" style="font-size:0.7rem;color:var(--accent);min-width:30px;">1x</span>
+    </div>
+  </div>
+
+  <div class="right-panel">
+
+    <!-- STATUS -->
+    <div class="card">
+      <div class="card-title">Stato</div>
+      <div class="status-row" id="statusRow">
+        <div class="status-pill" id="sTfjs">TF.js...</div>
+        <div class="status-pill" id="sModel">Modello...</div>
+        <div class="status-pill" id="sVideo">No Video</div>
+        <div class="status-pill" id="sFps">0 FPS</div>
+      </div>
+      <div class="thresh-row">
+        <label>Confidenza minima:</label>
+        <input type="range" id="confRange" min="1" max="95" value="15" oninput="updateThresh(this.value)">
+        <span class="thresh-val" id="confVal">15%</span>
+      </div>
+    </div>
+
+    <!-- DETECTIONS -->
+    <div class="card">
+      <div class="card-title">Rilevamenti frame corrente</div>
+      <div class="det-list" id="detList">
+        <div style="font-size:0.65rem;color:var(--dim);">Carica un video per iniziare...</div>
+      </div>
+    </div>
+
+    <!-- COLOR KEY -->
+    <div class="card">
+      <div class="card-title">Legenda Classi</div>
+      <div class="color-key" id="colorKey"></div>
+    </div>
+
+    <!-- LOG -->
+    <div class="card">
+      <div class="card-title">Log</div>
+      <div id="logBox"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════
+const MODEL_PATH = './tfjs_model/model.json';
+const IMG_SIZE   = 320;
+
+// Dataset classes — aggiusta se il tuo dataset ha ordine diverso
+const CLASS_NAMES = ['stick', '-', 'green_biscuit', 'net', 'puck', 'Snipes_Off', 'Snipes_On', 'stick_blade'];
+
+// Colori per ogni classe
+const CLASS_COLORS = [
+  '#ff9500', // stick
+  '#666666', // -
+  '#00ff88', // green_biscuit  ← puck colorato
+  '#ff3c5a', // net            ← porta
+  '#00dcff', // puck           ← puck nero
+  '#ffc040', // Snipes_Off
+  '#cc88ff', // Snipes_On
+  '#ff6688', // stick_blade
+];
+
+// ── State ──
+let model = null;
+let running = false;
+let frameCount = 0;
+let fpsTimer = null;
+let confThreshold = 0.15;
+let lastDetections = [];
+
+const $ = id => document.getElementById(id);
+const videoEl = $('videoEl');
+const canvas  = $('overlayCanvas');
+const ctx     = canvas.getContext('2d');
+
+// ── INIT ──
+async function init() {
+  log('TensorFlow.js caricamento...', 'info');
+  await tf.ready();
+  const backend = tf.getBackend();
+  log(`TF.js pronto — backend: ${backend}`, 'ok');
+  $('sTfjs').textContent = 'TF.js ✓';
+  $('sTfjs').className = 'status-pill on';
+
+  try {
+    log(`Caricamento modello da ${MODEL_PATH}...`, 'info');
+    model = await tf.loadGraphModel(MODEL_PATH);
+    log('Modello caricato!', 'ok');
+
+    // Warm-up
+    log('Warm-up...', 'info');
+    const dummy = tf.zeros([1, IMG_SIZE, IMG_SIZE, 3]);
+    model.execute(dummy);
+    dummy.dispose();
+    log('Warm-up completato', 'ok');
+
+    $('sModel').textContent = 'Modello ✓';
+    $('sModel').className = 'status-pill on';
+  } catch(e) {
+    log(`ERRORE modello: ${e.message}`, 'err');
+    $('sModel').textContent = 'Modello ✗';
+    $('sModel').className = 'status-pill err';
+  }
+
+  buildColorKey();
+}
+
+function buildColorKey() {
+  const key = $('colorKey');
+  CLASS_NAMES.forEach((name, i) => {
+    const item = document.createElement('div');
+    item.className = 'key-item';
+    item.innerHTML = `<div class="key-dot" style="background:${CLASS_COLORS[i]}"></div><span>${i}: ${name}</span>`;
+    key.appendChild(item);
+  });
+}
+
+// ── VIDEO ──
+function loadVideo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  videoEl.src = url;
+  videoEl.load();
+  videoEl.onloadedmetadata = () => {
+    canvas.width  = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    $('playBtn').disabled = false;
+    $('sVideo').textContent = `${videoEl.videoWidth}×${videoEl.videoHeight}`;
+    $('sVideo').className = 'status-pill on';
+    log(`Video caricato: ${file.name} (${videoEl.videoWidth}×${videoEl.videoHeight})`, 'ok');
+  };
+}
+
+function togglePlay() {
+  if (videoEl.paused) {
+    videoEl.play();
+    $('playBtn').textContent = '⏸ Pausa';
+    startLoop();
+  } else {
+    videoEl.pause();
+    $('playBtn').textContent = '▶ Play';
+  }
+}
+
+function stopVideo() {
+  videoEl.pause();
+  videoEl.currentTime = 0;
+  $('playBtn').textContent = '▶ Play';
+  running = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function stepFrame() {
+  if (!videoEl.src) return;
+  videoEl.currentTime += 1/30;
+  setTimeout(() => runInference(), 50);
+}
+
+function setSpeed(v) {
+  videoEl.playbackRate = parseFloat(v);
+  $('speedVal').textContent = v + 'x';
+}
+
+function updateThresh(v) {
+  confThreshold = parseInt(v) / 100;
+  $('confVal').textContent = v + '%';
+}
+
+// ── INFERENCE LOOP ──
+function startLoop() {
+  running = true;
+  frameCount = 0;
+  fpsTimer = setInterval(() => {
+    $('sFps').textContent = frameCount + ' FPS';
+    frameCount = 0;
+  }, 1000);
+  loopStep();
+}
+
+async function loopStep() {
+  if (!running || videoEl.paused || videoEl.ended) {
+    clearInterval(fpsTimer);
+    return;
+  }
+  frameCount++;
+  await runInference();
+  requestAnimationFrame(loopStep);
+}
+
+// ── YOLOV8 INFERENCE ──
+async function runInference() {
+  if (!model || videoEl.readyState < 2) return;
+
+  const raw = tf.tidy(() => {
+    const img = tf.browser.fromPixels(videoEl)
+      .resizeBilinear([IMG_SIZE, IMG_SIZE])
+      .div(255.0)
+      .expandDims(0);
+    return model.execute(img);
+  });
+
+  const data = await raw.array();
+  raw.dispose();
+
+  // YOLOv8 output: [1, 4+num_classes, num_anchors]
+  const output    = data[0];
+  const numAnchors  = output[0].length;
+  const numClasses  = output.length - 4;
+
+  // Collect ALL detections above threshold
+  const detections = [];
+  for (let a = 0; a < numAnchors; a++) {
+    for (let c = 0; c < numClasses; c++) {
+      const conf = output[4 + c][a];
+      if (conf >= confThreshold) {
+        detections.push({
+          cls: c,
+          conf,
+          cx: output[0][a] / IMG_SIZE,
+          cy: output[1][a] / IMG_SIZE,
+          w:  output[2][a] / IMG_SIZE,
+          h:  output[3][a] / IMG_SIZE,
+        });
+      }
+    }
+  }
+
+  // Sort by confidence descending
+  detections.sort((a, b) => b.conf - a.conf);
+
+  // Keep top 20 per class (NMS lite)
+  const kept = [];
+  const classCounts = {};
+  for (const d of detections) {
+    if ((classCounts[d.cls] || 0) < 3) {
+      kept.push(d);
+      classCounts[d.cls] = (classCounts[d.cls] || 0) + 1;
+    }
+  }
+
+  lastDetections = kept;
+  drawDetections(kept);
+  updateDetList(kept);
+}
+
+// ── DRAW ──
+function drawDetections(dets) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+
+  for (const d of dets) {
+    const color = CLASS_COLORS[d.cls] || '#ffffff';
+    const x = (d.cx - d.w/2) * W;
+    const y = (d.cy - d.h/2) * H;
+    const w = d.w * W;
+    const h = d.h * H;
+
+    // Box
+    ctx.strokeStyle = color;
+    ctx.lineWidth = d.cls === 4 || d.cls === 2 ? 3 : 1.5; // thicker for puck
+    ctx.strokeRect(x, y, w, h);
+
+    // Fill semi-transparent
+    ctx.fillStyle = color + '18';
+    ctx.fillRect(x, y, w, h);
+
+    // Label
+    const label = `${CLASS_NAMES[d.cls] || d.cls} ${Math.round(d.conf*100)}%`;
+    ctx.font = `bold ${d.cls===4||d.cls===2?13:10}px monospace`;
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y - 16, tw + 8, 16);
+    ctx.fillStyle = '#000';
+    ctx.fillText(label, x + 4, y - 3);
+  }
+}
+
+// ── DETECTION LIST UI ──
+function updateDetList(dets) {
+  const list = $('detList');
+  if (dets.length === 0) {
+    list.innerHTML = '<div style="font-size:0.65rem;color:var(--dim);">Nessun rilevamento sopra soglia</div>';
+    return;
+  }
+
+  // Group by class, take best conf per class
+  const byClass = {};
+  for (const d of dets) {
+    if (!byClass[d.cls] || d.conf > byClass[d.cls].conf) byClass[d.cls] = d;
+  }
+
+  list.innerHTML = '';
+  Object.values(byClass)
+    .sort((a,b) => b.conf - a.conf)
+    .forEach(d => {
+      const color = CLASS_COLORS[d.cls] || '#fff';
+      const isPuck = d.cls === 4 || d.cls === 2;
+      const isNet  = d.cls === 3;
+      const item = document.createElement('div');
+      item.className = 'det-item' + (isPuck || isNet ? ' highlight' : '');
+      item.innerHTML = `
+        <div style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div class="det-cls">${CLASS_NAMES[d.cls]||d.cls} ${isPuck?'🏒':isNet?'🥅':''}</div>
+          <div class="conf-bar"><div class="conf-fill" style="width:${d.conf*100}%;background:${color};"></div></div>
+        </div>
+        <div class="det-conf" style="color:${color};">${Math.round(d.conf*100)}%</div>
+      `;
+      list.appendChild(item);
+    });
+}
+
+// ── LOG ──
+function log(msg, type='info') {
+  const box = $('logBox');
+  const span = document.createElement('span');
+  span.className = 'log-' + type;
+  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── START ──
+init();
+</script>
+</body>
+</html>
