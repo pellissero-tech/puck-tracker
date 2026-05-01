@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#080c10">
+<link rel="manifest" href="manifest.json">
+<title>PUCK TRACKER</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Barlow+Condensed:wght@500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#080c10;--panel:#0d1318;--panel2:#111c24;
+  --border:rgba(0,220,255,0.12);--accent:#00dcff;
+  --red:#ff3c5a;--gold:#ffc040;--text:#cde8f0;
+  --dim:#3a6070;--green:#00ff88;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Barlow Condensed',sans-serif;touch-action:manipulation;}
+
+/* LOADING */
+#loadScreen{position:fixed;inset:0;z-index:2000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.5s;}
+.load-logo{font-family:'Bebas Neue';font-size:3rem;letter-spacing:8px;color:var(--accent);}
+.load-logo em{color:var(--red);font-style:normal;}
+.load-bar-wrap{width:240px;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
+.load-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--red));border-radius:2px;transition:width 0.3s ease;}
+.load-status{font-family:'JetBrains Mono';font-size:0.68rem;letter-spacing:2px;color:var(--dim);}
+
+/* APP */
+#appShell{display:flex;flex-direction:column;height:100%;opacity:0;transition:opacity 0.5s;}
+
+/* TOP NAV */
+.topnav{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{font-family:'Bebas Neue';font-size:1.5rem;letter-spacing:5px;color:var(--accent);}
+.logo em{color:var(--red);font-style:normal;}
+.nav-right{display:flex;align-items:center;gap:8px;}
+.badges{display:flex;gap:6px;}
+.badge{font-family:'JetBrains Mono';font-size:0.55rem;letter-spacing:1.5px;padding:3px 7px;border-radius:2px;border:1px solid var(--border);color:var(--dim);}
+.badge.on{color:var(--green);border-color:rgba(0,255,136,0.3);animation:blink 2s infinite;}
+.badge.warn{color:var(--gold);border-color:rgba(255,192,64,0.3);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.5}}
+.calib-btn{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:4px;border:none;cursor:pointer;font-family:'JetBrains Mono';font-size:0.6rem;letter-spacing:1.5px;transition:all 0.2s;}
+.calib-btn.uncalibrated{background:rgba(255,60,90,0.1);border:1px solid rgba(255,60,90,0.4);color:var(--red);}
+.calib-btn.calibrated{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);color:var(--green);}
+.calib-dot{width:7px;height:7px;border-radius:50%;}
+.calib-btn.uncalibrated .calib-dot{background:var(--red);animation:blink 1.5s infinite;}
+.calib-btn.calibrated .calib-dot{background:var(--green);}
+
+/* PAGES */
+.page{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.page.active{display:flex;}
+
+/* ══ TRACKER PAGE ══ */
+.video-wrap{position:relative;flex:1;background:#000;overflow:hidden;}
+#videoEl{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+#overlayCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;}
+.speed-hud{position:absolute;top:14px;left:14px;z-index:3;pointer-events:none;}
+.speed-num{font-family:'Bebas Neue';font-size:4.5rem;line-height:1;color:var(--accent);text-shadow:0 0 30px rgba(0,220,255,0.7);transition:color 0.15s;}
+.speed-num.fast{color:var(--red);text-shadow:0 0 30px rgba(255,60,90,0.7);}
+.speed-unit{font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:3px;color:var(--dim);}
+.conf-badge{position:absolute;top:14px;right:14px;z-index:3;font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:2px;padding:5px 12px;border-radius:2px;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:var(--dim);transition:all 0.2s;}
+.conf-badge.detected{color:var(--accent);border-color:rgba(0,220,255,0.4);}
+.conf-badge.predicted{color:var(--gold);border-color:rgba(255,192,64,0.4);}
+
+/* ZONE STATUS HUD */
+.zone-status{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:3;font-family:'Bebas Neue';font-size:1rem;letter-spacing:4px;padding:6px 18px;border-radius:4px;white-space:nowrap;transition:all 0.3s;pointer-events:none;display:none;}
+.zone-status.in-zone{display:block;background:rgba(0,255,136,0.12);border:1px solid rgba(0,255,136,0.4);color:var(--green);}
+.zone-status.out-zone{display:block;background:rgba(255,60,90,0.1);border:1px solid rgba(255,60,90,0.3);color:var(--red);}
+
+.zone-flash{position:absolute;inset:0;pointer-events:none;z-index:4;opacity:0;transition:opacity 0.1s;}
+.zone-flash.goal{background:rgba(0,220,255,0.2);}
+.zone-flash.miss{background:rgba(255,60,90,0.15);}
+#shotLabel{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:5;font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:6px;padding:8px 24px;border-radius:4px;opacity:0;transition:opacity 0.15s;white-space:nowrap;text-align:center;}
+#shotLabel.goal{color:#00dcff;background:rgba(0,220,255,0.1);border:1px solid rgba(0,220,255,0.4);}
+#shotLabel.miss{color:#ff3c5a;background:rgba(255,60,90,0.1);border:1px solid rgba(255,60,90,0.3);}
+#replayBtn{position:absolute;bottom:20px;right:16px;z-index:5;font-family:'Bebas Neue';font-size:0.9rem;letter-spacing:3px;padding:8px 14px;border-radius:4px;border:1px solid rgba(0,220,255,0.4);background:rgba(0,220,255,0.12);color:var(--accent);display:none;cursor:pointer;}
+
+/* REPLAY */
+#replayOverlay{position:absolute;inset:0;z-index:10;background:rgba(0,0,0,0.9);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+#replayOverlay.visible{display:flex;}
+.replay-title{font-family:'Bebas Neue';font-size:1.4rem;letter-spacing:6px;color:var(--accent);}
+#replayCanvas{border:1px solid rgba(0,220,255,0.2);border-radius:6px;max-width:90%;max-height:50vh;}
+.replay-info{display:flex;gap:20px;}
+.replay-stat{text-align:center;}
+.replay-stat-v{font-family:'Bebas Neue';font-size:1.8rem;color:var(--accent);}
+.replay-stat-v.r{color:var(--red);}
+.replay-stat-l{font-family:'JetBrains Mono';font-size:0.55rem;color:var(--dim);letter-spacing:1px;text-transform:uppercase;}
+#closeReplay{font-family:'Bebas Neue';letter-spacing:3px;font-size:1rem;padding:9px 24px;border-radius:4px;border:none;cursor:pointer;background:var(--red);color:#fff;}
+
+/* NO CALIB */
+#noCalibWarn{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,0.78);backdrop-filter:blur(4px);}
+#noCalibWarn h2{font-family:'Bebas Neue';font-size:1.6rem;letter-spacing:4px;color:var(--red);}
+#noCalibWarn p{font-family:'JetBrains Mono';font-size:0.66rem;color:var(--dim);text-align:center;max-width:260px;line-height:1.7;}
+.btn-lg{font-family:'Bebas Neue';letter-spacing:3px;font-size:1.1rem;padding:12px 28px;border-radius:4px;border:none;cursor:pointer;}
+.btn-lg.primary{background:var(--accent);color:#000;}
+.btn-lg.ghost{background:transparent;color:var(--dim);border:1px solid var(--border);font-size:0.85rem;}
+
+/* CORNERS */
+.corners{position:absolute;inset:12px;pointer-events:none;z-index:3;}
+.c{position:absolute;width:24px;height:24px;border-color:rgba(0,220,255,0.6);border-style:solid;}
+.c.tl{top:0;left:0;border-width:2px 0 0 2px}.c.tr{top:0;right:0;border-width:2px 2px 0 0}
+.c.bl{bottom:0;left:0;border-width:0 0 2px 2px}.c.br{bottom:0;right:0;border-width:0 2px 2px 0}
+
+/* BOTTOM */
+.bottom{background:var(--panel);border-top:1px solid var(--border);padding:8px 16px;flex-shrink:0;}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
+.stat-box{text-align:center;}
+.stat-v{font-family:'Bebas Neue';font-size:1.5rem;line-height:1;color:var(--accent);}
+.stat-v.r{color:var(--red)}.stat-v.g{color:var(--gold)}.stat-v.gr{color:var(--green)}
+.stat-l{font-family:'JetBrains Mono';font-size:0.48rem;letter-spacing:1px;color:var(--dim);text-transform:uppercase;}
+.goal-section{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+.goal-lbl{font-family:'JetBrains Mono';font-size:0.48rem;letter-spacing:1.5px;color:var(--dim);writing-mode:vertical-rl;transform:rotate(180deg);flex-shrink:0;margin-top:4px;}
+.goal-outer{flex:1;display:flex;flex-direction:column;gap:2px;}
+.miss-top{height:12px;background:rgba(255,60,90,0.06);border:1px solid rgba(255,60,90,0.15);border-radius:3px 3px 0 0;display:flex;align-items:center;justify-content:space-between;padding:0 6px;font-family:'JetBrains Mono';font-size:0.38rem;color:rgba(255,60,90,0.35);letter-spacing:1px;}
+.miss-top.hit{background:rgba(255,60,90,0.2);border-color:rgba(255,60,90,0.5);}
+.goal-net{display:flex;gap:2px;}
+.miss-side{width:12px;flex-shrink:0;background:rgba(255,60,90,0.06);border:1px solid rgba(255,60,90,0.15);border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:'JetBrains Mono';font-size:0.35rem;color:rgba(255,60,90,0.35);}
+.miss-side.hit{background:rgba(255,60,90,0.2);border-color:rgba(255,60,90,0.5);}
+.zones-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:2px;background:#060e14;border:2px solid #cc2200;border-radius:2px;overflow:hidden;aspect-ratio:5/2.2;position:relative;}
+.zone{position:relative;display:flex;align-items:center;justify-content:center;background:rgba(0,220,255,0.03);border:1px solid rgba(0,220,255,0.07);transition:background 0.3s;overflow:hidden;}
+.zone::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,0.015) 0,rgba(255,255,255,0.015) 1px,transparent 1px,transparent 10px),repeating-linear-gradient(90deg,rgba(255,255,255,0.015) 0,rgba(255,255,255,0.015) 1px,transparent 1px,transparent 10px);}
+.zone-name{font-family:'JetBrains Mono';font-size:0.34rem;color:rgba(255,255,255,0.12);letter-spacing:0.5px;text-align:center;z-index:1;}
+.zone-count{position:absolute;bottom:1px;right:2px;font-family:'Bebas Neue';font-size:0.7rem;color:rgba(0,220,255,0.4);z-index:1;}
+.zone.hit{border-color:rgba(0,220,255,0.45)!important;}
+.zone.hit .zone-name{color:rgba(0,220,255,0.7);}.zone.hit .zone-count{color:var(--accent);}
+.sdot{position:absolute;border-radius:50%;transform:translate(-50%,-50%);animation:di 0.3s ease;z-index:2;pointer-events:none;}
+.sdot.g{width:6px;height:6px;background:var(--accent);box-shadow:0 0 5px var(--accent);}
+.sdot.m{width:5px;height:5px;background:var(--red);box-shadow:0 0 4px var(--red);}
+@keyframes di{0%{transform:translate(-50%,-50%) scale(0)}60%{transform:translate(-50%,-50%) scale(1.6)}100%{transform:translate(-50%,-50%) scale(1)}}
+.controls{display:flex;gap:8px;align-items:center;}
+.btn{font-family:'Bebas Neue';letter-spacing:3px;font-size:0.9rem;padding:9px 14px;border-radius:4px;border:none;cursor:pointer;transition:all 0.15s;flex-shrink:0;}
+.btn-start{background:var(--accent);color:#000;}
+.btn-stop{background:var(--red);color:#fff;}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);font-size:0.75rem;}
+.cam-sel{flex:1;background:#111820;color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:'JetBrains Mono';font-size:0.62rem;letter-spacing:1px;padding:7px 8px;outline:none;min-width:0;}
+
+/* ══ CALIBRATION PAGE ══ */
+#calibPage{background:var(--bg);}
+.calib-header{padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.calib-header-title{font-family:'Bebas Neue';font-size:1.3rem;letter-spacing:4px;color:var(--accent);}
+.btn-back{font-family:'JetBrains Mono';font-size:0.62rem;letter-spacing:2px;padding:6px 12px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;}
+.calib-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+
+/* Goal type selector */
+.goal-type-selector{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.goal-type-card{
+  padding:12px;border-radius:6px;border:2px solid var(--border);cursor:pointer;
+  background:var(--panel);transition:all 0.2s;text-align:center;
+}
+.goal-type-card.selected{border-color:var(--accent);background:rgba(0,220,255,0.06);}
+.goal-type-name{font-family:'Bebas Neue';font-size:1rem;letter-spacing:2px;color:var(--text);margin-bottom:4px;}
+.goal-type-size{font-family:'JetBrains Mono';font-size:0.6rem;color:var(--dim);}
+.goal-type-card.selected .goal-type-name{color:var(--accent);}
+
+/* Steps */
+.steps{display:flex;gap:6px;align-items:center;}
+.step{display:flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:0.55rem;letter-spacing:1px;color:var(--dim);}
+.step.active{color:var(--accent);}
+.step.done{color:var(--green);}
+.step-num{width:18px;height:18px;border-radius:50%;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:0.55rem;flex-shrink:0;}
+.step-sep{flex:1;height:1px;background:var(--border);}
+
+/* Calib video */
+.calib-video-wrap{position:relative;border-radius:6px;overflow:hidden;background:#000;aspect-ratio:16/9;}
+#calibVideoEl{width:100%;height:100%;object-fit:cover;display:block;}
+#calibCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:2;}
+.tap-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;}
+.tap-hint-text{font-family:'JetBrains Mono';font-size:0.65rem;letter-spacing:1px;color:#fff;background:rgba(0,0,0,0.6);padding:5px 12px;border-radius:4px;white-space:nowrap;}
+
+/* Corner markers */
+.corner-marker{position:absolute;width:36px;height:36px;border-color:rgba(255,192,64,0.5);border-style:solid;pointer-events:none;z-index:1;transition:all 0.3s;}
+.corner-marker.tl{top:8px;left:8px;border-width:2px 0 0 2px;}
+.corner-marker.tr{top:8px;right:8px;border-width:2px 2px 0 0;}
+.corner-marker.bl{bottom:8px;left:8px;border-width:0 0 2px 2px;}
+.corner-marker.br{bottom:8px;right:8px;border-width:0 2px 2px 0;}
+.corner-marker.done{border-color:rgba(0,255,136,0.8);}
+
+/* Calib instruction card */
+.calib-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px;}
+.calib-card-title{font-family:'Bebas Neue';font-size:0.95rem;letter-spacing:3px;color:var(--accent);margin-bottom:8px;}
+
+/* Tap items */
+.tap-list{display:flex;flex-direction:column;gap:6px;}
+.tap-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;background:var(--panel2);border:1px solid var(--border);transition:all 0.2s;}
+.tap-item.active{border-color:var(--gold);background:rgba(255,192,64,0.05);}
+.tap-item.done{border-color:var(--green);background:rgba(0,255,136,0.04);}
+.tap-num{width:22px;height:22px;border-radius:50%;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:0.8rem;flex-shrink:0;color:var(--dim);}
+.tap-item.active .tap-num{color:var(--gold);}
+.tap-item.done .tap-num{color:var(--green);}
+.tap-label{font-family:'JetBrains Mono';font-size:0.62rem;color:var(--dim);flex:1;}
+.tap-item.active .tap-label{color:var(--text);}
+.tap-item.done .tap-label{color:var(--green);}
+.tap-check{font-size:0.9rem;}
+
+/* Calibration result */
+.calib-result{background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);border-radius:6px;padding:12px;display:none;}
+.calib-result.visible{display:block;}
+.calib-result-title{font-family:'Bebas Neue';font-size:0.95rem;letter-spacing:3px;color:var(--green);margin-bottom:10px;}
+.calib-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.calib-metric{text-align:center;}
+.calib-metric-v{font-family:'Bebas Neue';font-size:1.3rem;color:var(--green);}
+.calib-metric-l{font-family:'JetBrains Mono';font-size:0.48rem;color:var(--dim);letter-spacing:1px;text-transform:uppercase;}
+
+.btn-confirm-calib{width:100%;padding:13px;background:var(--green);color:#000;font-family:'Bebas Neue';font-size:1.1rem;letter-spacing:4px;border:none;border-radius:6px;cursor:pointer;display:none;}
+.btn-confirm-calib.visible{display:block;}
+.btn-reset-calib{width:100%;padding:9px;background:transparent;color:var(--dim);font-family:'JetBrains Mono';font-size:0.62rem;letter-spacing:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;}
+.btn-start-cam{width:100%;padding:12px;background:var(--accent);color:#000;font-family:'Bebas Neue';font-size:1rem;letter-spacing:3px;border:none;border-radius:6px;cursor:pointer;}
+
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<div id="loadScreen">
+  <div class="load-logo">PUCK <em>TRACKER</em></div>
+  <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+  <div class="load-status" id="loadStatus">Inizializzazione...</div>
+</div>
+
+<div id="appShell">
+  <div class="topnav">
+    <div class="logo">PUCK <em>TRACKER</em></div>
+    <div class="nav-right">
+      <div class="badges">
+        <div class="badge" id="modelBadge">AI</div>
+        <div class="badge" id="camBadge">CAM</div>
+        <div class="badge" id="fpsBadge">0 FPS</div>
+      </div>
+      <button class="calib-btn uncalibrated" id="calibStatusBtn" onclick="goToCalib()">
+        <div class="calib-dot"></div>
+        <span id="calibBtnText">CALIBRA</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ TRACKER PAGE ══ -->
+  <div class="page active" id="trackerPage">
+    <div class="video-wrap">
+      <video id="videoEl" autoplay playsinline muted></video>
+      <canvas id="overlayCanvas"></canvas>
+      <div class="corners"><div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div></div>
+      <div class="speed-hud"><div class="speed-num" id="speedNum">—</div><div class="speed-unit">KM/H</div></div>
+      <div class="conf-badge" id="confBadge">NO PUCK</div>
+      <div class="zone-status" id="zoneStatus"></div>
+      <div class="zone-flash" id="zoneFlash"></div>
+      <div id="shotLabel"></div>
+      <button id="replayBtn" onclick="showReplay()">⏮ REPLAY</button>
+      <div id="replayOverlay">
+        <div class="replay-title">⏮ ULTIMO TIRO</div>
+        <canvas id="replayCanvas"></canvas>
+        <div class="replay-info">
+          <div class="replay-stat"><div class="replay-stat-v" id="replaySpeed">—</div><div class="replay-stat-l">KM/H MAX</div></div>
+          <div class="replay-stat"><div class="replay-stat-v" id="replayZone">—</div><div class="replay-stat-l">ZONA</div></div>
+          <div class="replay-stat"><div class="replay-stat-v r" id="replayResult">—</div><div class="replay-stat-l">RISULTATO</div></div>
+        </div>
+        <button id="closeReplay" onclick="hideReplay()">✕ CHIUDI</button>
+      </div>
+      <div id="noCalibWarn">
+        <h2>⚠ Non Calibrato</h2>
+        <p>Calibra la porta per velocità accurate e rilevamento zona di tiro.</p>
+        <button class="btn-lg primary" onclick="goToCalib()">▶ CALIBRA ORA</button>
+        <button class="btn-lg ghost" onclick="skipCalib()" style="margin-top:6px;">Salta calibrazione</button>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-v" id="sSpeed">0</div><div class="stat-l">KM/H</div></div>
+        <div class="stat-box"><div class="stat-v g" id="sMax">0</div><div class="stat-l">MAX</div></div>
+        <div class="stat-box"><div class="stat-v gr" id="sGoals">0</div><div class="stat-l">GOAL</div></div>
+        <div class="stat-box"><div class="stat-v r" id="sMiss">0</div><div class="stat-l">MISS</div></div>
+      </div>
+      <div class="goal-section">
+        <div class="goal-lbl">MAPPA</div>
+        <div class="goal-outer">
+          <div class="miss-top" id="missTop"><span>⬆ MISS TOP</span><span id="missTopCount" style="font-family:'Bebas Neue';font-size:0.8rem;">0</span></div>
+          <div class="goal-net">
+            <div class="miss-side" id="missLeft"><span>◀</span><span id="missLeftCount" style="font-family:'Bebas Neue';font-size:0.72rem;">0</span></div>
+            <div class="zones-grid" id="zonesGrid">
+              <div class="zone" id="z-top-sx"><span class="zone-name">TOP SX</span><span class="zone-count" id="c-top-sx">0</span></div>
+              <div class="zone" id="z-top-dx"><span class="zone-name">TOP DX</span><span class="zone-count" id="c-top-dx">0</span></div>
+              <div class="zone" id="z-ctr-sx"><span class="zone-name">CTR SX</span><span class="zone-count" id="c-ctr-sx">0</span></div>
+              <div class="zone" id="z-ctr-dx"><span class="zone-name">CTR DX</span><span class="zone-count" id="c-ctr-dx">0</span></div>
+              <div class="zone" id="z-bot-sx"><span class="zone-name">BOT SX</span><span class="zone-count" id="c-bot-sx">0</span></div>
+              <div class="zone" id="z-bot-dx"><span class="zone-name">BOT DX</span><span class="zone-count" id="c-bot-dx">0</span></div>
+            </div>
+            <div class="miss-side" id="missRight"><span>▶</span><span id="missRightCount" style="font-family:'Bebas Neue';font-size:0.72rem;">0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <select class="cam-sel" id="camSel"></select>
+        <button class="btn btn-start" id="startBtn" onclick="startCam()">▶ START</button>
+        <button class="btn btn-stop hidden" id="stopBtn" onclick="stopCam()">■</button>
+        <button class="btn btn-ghost" onclick="resetStats()">↺</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CALIBRATION PAGE ══ -->
+  <div class="page" id="calibPage">
+    <div class="calib-header">
+      <button class="btn-back" onclick="goToTracker()">← INDIETRO</button>
+      <div class="calib-header-title">Calibrazione</div>
+    </div>
+    <div class="calib-body">
+
+      <!-- STEP INDICATOR -->
+      <div class="steps">
+        <div class="step active" id="sInd1"><div class="step-num">1</div><span>PORTA</span></div>
+        <div class="step-sep"></div>
+        <div class="step" id="sInd2"><div class="step-num">2</div><span>ANGOLI</span></div>
+        <div class="step-sep"></div>
+        <div class="step" id="sInd3"><div class="step-num">3</div><span>ZONA TIRO</span></div>
+        <div class="step-sep"></div>
+        <div class="step" id="sInd4"><div class="step-num">4</div><span>CONFERMA</span></div>
+      </div>
+
+      <!-- STEP 1: GOAL TYPE -->
+      <div class="calib-card" id="cardGoalType">
+        <div class="calib-card-title">Seleziona tipo di porta</div>
+        <div class="goal-type-selector">
+          <div class="goal-type-card selected" id="gt-nhl" onclick="selectGoalType('nhl')">
+            <div class="goal-type-name">NHL / IIHF</div>
+            <div class="goal-type-size">183 × 122 cm</div>
+          </div>
+          <div class="goal-type-card" id="gt-street" onclick="selectGoalType('street')">
+            <div class="goal-type-name">STREET</div>
+            <div class="goal-type-size">152 × 107 cm</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIDEO -->
+      <div class="calib-video-wrap" id="calibVideoWrap">
+        <video id="calibVideoEl" autoplay playsinline muted></video>
+        <canvas id="calibCanvas" style="cursor:crosshair;"></canvas>
+        <div class="tap-hint" id="tapHint" style="display:none;">
+          <div class="tap-hint-text" id="tapHintText">—</div>
+        </div>
+        <div class="corner-marker tl" id="cm-tl"></div>
+        <div class="corner-marker tr" id="cm-tr"></div>
+        <div class="corner-marker bl" id="cm-bl"></div>
+        <div class="corner-marker br" id="cm-br"></div>
+      </div>
+
+      <!-- TAP LIST -->
+      <div class="calib-card">
+        <div class="calib-card-title">Tap sul video</div>
+        <div class="tap-list">
+          <div class="tap-item" id="ti-0"><div class="tap-num">1</div><div class="tap-label">Angolo Alto Sinistra della porta</div><div class="tap-check"></div></div>
+          <div class="tap-item" id="ti-1"><div class="tap-num">2</div><div class="tap-label">Angolo Alto Destra della porta</div><div class="tap-check"></div></div>
+          <div class="tap-item" id="ti-2"><div class="tap-num">3</div><div class="tap-label">Angolo Basso Sinistra della porta</div><div class="tap-check"></div></div>
+          <div class="tap-item" id="ti-3"><div class="tap-num">4</div><div class="tap-label">Angolo Basso Destra della porta</div><div class="tap-check"></div></div>
+          <div class="tap-item" id="ti-4">
+            <div class="tap-num">5</div>
+            <div class="tap-label">
+              <strong>Puck a terra</strong> nella zona di tiro<br>
+              <span style="font-size:0.55rem;opacity:0.6;">Posiziona un puck davanti alla porta nel punto di tiro, poi tocca qui</span>
+            </div>
+            <div class="tap-check"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="calib-result" id="calibResult">
+        <div class="calib-result-title">✓ Calibrazione Pronta</div>
+        <div class="calib-metrics">
+          <div class="calib-metric"><div class="calib-metric-v" id="metricPxCm">—</div><div class="calib-metric-l">px / cm</div></div>
+          <div class="calib-metric"><div class="calib-metric-v" id="metricDist">—</div><div class="calib-metric-l">dist. tiro m</div></div>
+          <div class="calib-metric"><div class="calib-metric-v" id="metricZone">—</div><div class="calib-metric-l">zona tiro px</div></div>
+        </div>
+      </div>
+
+      <button class="btn-start-cam" id="startCalibCamBtn" onclick="startCalibCam()">📷 AVVIA CAMERA</button>
+      <button class="btn-confirm-calib" id="confirmCalibBtn" onclick="confirmCalib()">✓ CONFERMA E INIZIA</button>
+      <button class="btn-reset-calib" onclick="resetCalib()">↺ Ricomincia</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  PUCK TRACKER
+//  Frame Differencing + YOLO(net only)
+//  5-tap calibration + shooting zone beep
+// ════════════════════════════════════════════
+
+const MODEL_PATH = './tfjs_model/model.json';
+const IMG_SIZE   = 320;
+const NET_CLASS  = 3;
+
+// Goal dimensions (cm)
+const GOAL_TYPES = {
+  nhl:    {w:183, h:122, name:'NHL/IIHF'},
+  street: {w:152, h:107, name:'Street'},
+};
+
+const ZONES = [
+  {id:'top-sx',xMin:0,  xMax:0.5,yMin:0,   yMax:0.33,label:'Top SX'},
+  {id:'top-dx',xMin:0.5,xMax:1.0,yMin:0,   yMax:0.33,label:'Top DX'},
+  {id:'ctr-sx',xMin:0,  xMax:0.5,yMin:0.33,yMax:0.67,label:'Center SX'},
+  {id:'ctr-dx',xMin:0.5,xMax:1.0,yMin:0.33,yMax:0.67,label:'Center DX'},
+  {id:'bot-sx',xMin:0,  xMax:0.5,yMin:0.67,yMax:1.0, label:'Bottom SX'},
+  {id:'bot-dx',xMin:0.5,xMax:1.0,yMin:0.67,yMax:1.0, label:'Bottom DX'},
+];
+
+// ── CALIBRATION ──
+const CALIB = {
+  done: false,
+  goalType: 'nhl',
+  corners: [],         // 4 corners: TL, TR, BL, BR (normalized 0-1)
+  puckPos: null,       // 5th tap: puck on ground (normalized)
+  netBox: null,        // computed {x,y,w,h} normalized
+  pxPerCm: null,
+  shootDistCm: null,   // computed shooting distance
+  shootZoneRadius: null, // pixels — ~80cm radius on ground
+  calibStream: null,
+  calibStep: 0,        // 0=waiting, 1-5=tapping, 6=done
+};
+
+// ── TRACKER STATE ──
+const S = {
+  model:null, stream:null, running:false, frameCount:0,
+  goals:0, misses:0, maxSpeed:0,
+  history:[], lastPos:null, lastTime:null,
+  velocity:0, velSmooth:0,
+  inferring:false,
+  netBox:null, netSmooth:null,
+  vx:0, vy:0, lostFrames:0, MAX_LOST:15,
+  shotActive:false, shotTrail:[], lastShot:null,
+  lastZone:null, lastResult:null,
+  prevFrameData:null,
+  diffCanvas:document.createElement('canvas'),
+  zoneCounts:{'top-sx':0,'top-dx':0,'ctr-sx':0,'ctr-dx':0,'bot-sx':0,'bot-dx':0,'miss-top':0,'miss-left':0,'miss-right':0},
+  inShootZone: false,
+  lastBeepTime: 0,
+};
+S.diffCtx = S.diffCanvas.getContext('2d');
+
+// ── WEB AUDIO for beep ──
+let audioCtx = null;
+function initAudio(){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+function beep(freq=880, dur=0.08, type='sine'){
+  if(!audioCtx) return;
+  const now = Date.now();
+  if(now - S.lastBeepTime < 1500) return; // debounce
+  S.lastBeepTime = now;
+  try{
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type=type; osc.frequency.value=freq;
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime+dur);
+  }catch(e){}
+}
+
+const $ = id => document.getElementById(id);
+const videoEl    = $('videoEl');
+const canvas     = $('overlayCanvas');
+const ctx        = canvas.getContext('2d');
+const speedNum   = $('speedNum');
+const confBadge  = $('confBadge');
+const fpsBadge   = $('fpsBadge');
+const camBadge   = $('camBadge');
+const modelBadge = $('modelBadge');
+const zoneFlash  = $('zoneFlash');
+const shotLabel  = $('shotLabel');
+const zoneStatus = $('zoneStatus');
+const rCanvas    = $('replayCanvas');
+const rCtx       = rCanvas.getContext('2d');
+const calibVideoEl = $('calibVideoEl');
+const calibCanvas  = $('calibCanvas');
+const calibCtx     = calibCanvas.getContext('2d');
+
+// ── BOOT ──
+async function boot(){
+  setLoad(10,'Caricamento TensorFlow.js...');
+  await tf.ready();
+  setLoad(30,'WebGL pronto...');
+  try{
+    setLoad(50,'Caricamento modello...');
+    S.model = await tf.loadGraphModel(MODEL_PATH);
+    setLoad(80,'Warm-up...');
+    const d=tf.zeros([1,IMG_SIZE,IMG_SIZE,3]); S.model.execute(d); d.dispose();
+    modelBadge.textContent='AI ON'; modelBadge.className='badge on';
+  }catch(e){
+    S.model=null; modelBadge.textContent='CV'; modelBadge.className='badge warn';
+  }
+  await enumCams();
+  setLoad(100,'Pronto!');
+  await sleep(400);
+  $('loadScreen').style.opacity='0'; $('appShell').style.opacity='1';
+  setTimeout(()=>$('loadScreen').style.display='none',500);
+}
+function setLoad(p,m){$('loadBar').style.width=p+'%';$('loadStatus').textContent=m;}
+
+// ── PAGES ──
+function goToCalib(){
+  $('trackerPage').classList.remove('active');
+  $('calibPage').classList.add('active');
+}
+function goToTracker(){
+  $('calibPage').classList.remove('active');
+  $('trackerPage').classList.add('active');
+  stopCalibCam();
+}
+function skipCalib(){
+  $('noCalibWarn').style.display='none';
+  CALIB.pxPerCm = canvas.width*0.38/183;
+  CALIB.netBox  = {x:0.5,y:0.62,w:0.52,h:0.32};
+  S.netBox = CALIB.netBox;
+  initAudio();
+}
+
+// ── CAMERAS ──
+async function enumCams(){
+  try{
+    await navigator.mediaDevices.getUserMedia({video:true});
+    const devs=await navigator.mediaDevices.enumerateDevices();
+    const cams=devs.filter(d=>d.kind==='videoinput');
+    const sel=$('camSel'); sel.innerHTML='';
+    cams.forEach((c,i)=>{
+      const o=document.createElement('option'); o.value=c.deviceId;
+      const lbl=c.label||`Camera ${i+1}`;
+      o.textContent=lbl.length>22?lbl.slice(0,20)+'…':lbl;
+      if(/back|rear|post|env/i.test(lbl)) o.selected=true;
+      sel.appendChild(o);
+    });
+  }catch(e){$('camSel').innerHTML='<option>Permesso negato</option>';}
+}
+
+async function startCam(){
+  const deviceId=$('camSel').value;
+  const constraints={video:deviceId
+    ?{deviceId:{exact:deviceId},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}
+    :{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}};
+  try{
+    S.stream=await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject=S.stream; await videoEl.play(); S.running=true;
+    $('startBtn').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
+    camBadge.textContent='CAM ON'; camBadge.className='badge on';
+    videoEl.addEventListener('loadedmetadata',()=>{
+      canvas.width=videoEl.videoWidth; canvas.height=videoEl.videoHeight;
+      S.diffCanvas.width=320; S.diffCanvas.height=180;
+    },{once:true});
+    S._fpsTimer=setInterval(()=>{fpsBadge.textContent=S.frameCount+' FPS';S.frameCount=0;},1000);
+    initAudio();
+    requestAnimationFrame(loop);
+  }catch(e){alert('Camera error: '+e.message);}
+}
+
+function stopCam(){
+  S.running=false;
+  if(S.stream)S.stream.getTracks().forEach(t=>t.stop());
+  clearInterval(S._fpsTimer);
+  $('startBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+  camBadge.textContent='CAM'; camBadge.className='badge';
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  S.prevFrameData=null;
+}
+
+// ── MAIN LOOP ──
+async function loop(){
+  if(!S.running)return;
+  S.frameCount++;
+  if(S.frameCount%2===0&&!S.inferring){
+    S.inferring=true;
+    try{
+      const puck=detectPuckByFrameDiff();
+      if(S.model&&S.frameCount%10===0) await detectNet();
+      if(puck){ processDetection(puck,false); S.lostFrames=0; }
+      else if(S.lostFrames<S.MAX_LOST&&S.lastPos){ predictPosition(); S.lostFrames++; }
+      else{ noPuck(); endShotTracking(); S.lostFrames++; }
+    }catch(e){console.warn(e);}
+    S.inferring=false;
+  }
+  drawOverlay();
+  requestAnimationFrame(loop);
+}
+
+// ── FRAME DIFFERENCING ──
+function detectPuckByFrameDiff(){
+  if(videoEl.readyState<2)return null;
+  const W=320,H=180;
+  S.diffCtx.drawImage(videoEl,0,0,W,H);
+  const curr=S.diffCtx.getImageData(0,0,W,H);
+  if(!S.prevFrameData){S.prevFrameData=curr;return null;}
+
+  const THRESH=25, MIN_PX=6, MAX_PX=300;
+  const nb=getNetBox();
+  const fx1=Math.max(0,Math.floor((nb.x-nb.w*0.9)*W));
+  const fx2=Math.min(W,Math.ceil((nb.x+nb.w*0.9)*W));
+  const fy1=Math.max(0,Math.floor((nb.y-nb.h*2.0)*H));
+  const fy2=Math.min(H,Math.ceil((nb.y+nb.h*0.6)*H));
+
+  const cD=curr.data, pD=S.prevFrameData.data;
+  let sumX=0,sumY=0,cnt=0,mnX=W,mxX=0,mnY=H,mxY=0;
+
+  for(let y=fy1;y<fy2;y++){
+    for(let x=fx1;x<fx2;x++){
+      const i=(y*W+x)*4;
+      const d=(Math.abs(cD[i]-pD[i])+Math.abs(cD[i+1]-pD[i+1])+Math.abs(cD[i+2]-pD[i+2]))/3;
+      if(d>THRESH){sumX+=x;sumY+=y;cnt++;mnX=Math.min(mnX,x);mxX=Math.max(mxX,x);mnY=Math.min(mnY,y);mxY=Math.max(mxY,y);}
+    }
+  }
+  S.prevFrameData=curr;
+  if(cnt<MIN_PX||cnt>MAX_PX)return null;
+  const bW=mxX-mnX,bH=mxY-mnY;
+  if(bW<2||bH<2)return null;
+  const aspect=bW/Math.max(bH,1);
+  if(aspect>5||aspect<0.2)return null;
+
+  const cx=(sumX/cnt)/W, cy=(sumY/cnt)/H;
+
+  // Continuity check
+  if(S.lastPos&&CALIB.done){
+    const dist=Math.sqrt(Math.pow(cx-S.lastPos.x/canvas.width,2)+Math.pow(cy-S.lastPos.y/canvas.height,2));
+    if(dist>0.45)return null;
+  }
+  return{x:cx,y:cy,w:bW/W,h:bH/H,confidence:Math.min(cnt/60,1.0),type:'frame_diff'};
+}
+
+// ── YOLO NET ──
+async function detectNet(){
+  if(videoEl.readyState<2)return;
+  const raw=tf.tidy(()=>{
+    const img=tf.browser.fromPixels(videoEl).resizeBilinear([IMG_SIZE,IMG_SIZE]).div(255.0).expandDims(0);
+    return S.model.execute(img);
+  });
+  const data=await raw.array(); raw.dispose();
+  const output=data[0],numAnchors=output[0].length,numClasses=output.length-4;
+  let bConf=0,bNet=null;
+  for(let a=0;a<numAnchors;a++){
+    if(NET_CLASS>=numClasses)continue;
+    const conf=output[4+NET_CLASS][a];
+    if(conf>bConf&&conf>0.25){bConf=conf;bNet={x:output[0][a]/IMG_SIZE,y:output[1][a]/IMG_SIZE,w:output[2][a]/IMG_SIZE,h:output[3][a]/IMG_SIZE};}
+  }
+  if(bNet){
+    if(!S.netSmooth)S.netSmooth={...bNet};
+    else{const a=0.2;S.netSmooth.x=S.netSmooth.x*(1-a)+bNet.x*a;S.netSmooth.y=S.netSmooth.y*(1-a)+bNet.y*a;S.netSmooth.w=S.netSmooth.w*(1-a)+bNet.w*a;S.netSmooth.h=S.netSmooth.h*(1-a)+bNet.h*a;}
+    S.netBox=S.netSmooth;
+  }
+}
+
+function getNetBox(){
+  if(CALIB.done&&CALIB.netBox)return CALIB.netBox;
+  if(S.netBox)return S.netBox;
+  return{x:0.5,y:0.62,w:0.52,h:0.32};
+}
+
+// ── PREDICTION ──
+function predictPosition(){
+  if(!S.lastPos)return;
+  const now=Date.now(),dt=(now-(S.lastTime||now))/1000;
+  const predX=S.lastPos.x+S.vx*dt*1000, predY=S.lastPos.y+S.vy*dt*1000;
+  if(predX<0||predX>canvas.width||predY<0||predY>canvas.height){noPuck();return;}
+  processDetection({x:predX/canvas.width,y:predY/canvas.height,w:0.03,h:0.03,confidence:Math.max(0.1,0.8-S.lostFrames*0.06),type:'predicted'},true);
+  confBadge.textContent='◎ PREDETTO'; confBadge.className='conf-badge predicted';
+}
+
+// ── SHOOTING ZONE CHECK ──
+function checkShootingZone(puck){
+  if(!CALIB.done||!CALIB.puckPos||!CALIB.shootZoneRadius)return;
+  const px=puck.x*canvas.width, py=puck.y*canvas.height;
+  const zx=CALIB.puckPos.x*canvas.width, zy=CALIB.puckPos.y*canvas.height;
+  const dist=Math.sqrt(Math.pow(px-zx,2)+Math.pow(py-zy,2));
+  const inZone=dist<=CALIB.shootZoneRadius;
+
+  if(inZone!==S.inShootZone){
+    S.inShootZone=inZone;
+    zoneStatus.className='zone-status '+(inZone?'in-zone':'out-zone');
+    zoneStatus.textContent=inZone?'✓ ZONA DI TIRO':'✗ FUORI ZONA';
+    if(inZone) beep(880,0.06,'sine');       // high beep = in zone ✓
+    else        beep(220,0.12,'sawtooth');  // low buzz = out of zone ✗
+  }
+}
+
+// ── PROCESS DETECTION ──
+let lastShotTime=0;
+function processDetection(puck,isPredicted){
+  const px=puck.x*canvas.width, py=puck.y*canvas.height, now=Date.now();
+  if(!isPredicted){confBadge.textContent=`⬤ PUCK ${Math.round(puck.confidence*100)}%`;confBadge.className='conf-badge detected';}
+  if(S.lastPos&&S.lastTime){
+    const dx=px-S.lastPos.x,dy=py-S.lastPos.y,distPx=Math.sqrt(dx*dx+dy*dy),dt=(now-S.lastTime)/1000;
+    if(dt>0&&distPx>1){
+      if(!isPredicted){S.vx=(dx/canvas.width)/(dt*1000)*canvas.width;S.vy=(dy/canvas.height)/(dt*1000)*canvas.height;}
+      const pxPerCm=CALIB.pxPerCm||(canvas.width*0.38/183);
+      const kmh=(distPx/pxPerCm)/dt*0.036;
+      if(kmh>1&&kmh<220){
+        S.velocity=Math.round(kmh);S.velSmooth=Math.round(S.velSmooth*0.5+S.velocity*0.5);
+        updateSpeedUI(S.velSmooth);
+        if(S.velSmooth>S.maxSpeed){S.maxSpeed=S.velSmooth;$('sMax').textContent=S.maxSpeed;}
+      }
+    }
+  }
+  S.lastPos={x:px,y:py};if(!isPredicted)S.lastTime=now;
+  S.history.push({x:px,y:py,t:now,predicted:isPredicted});
+  if(S.history.length>40)S.history.shift();
+  if(S.velocity>10){if(!S.shotActive){S.shotActive=true;S.shotTrail=[];}S.shotTrail.push({x:px,y:py,t:now,predicted:isPredicted});}
+
+  // Check shooting zone
+  if(!isPredicted) checkShootingZone(puck);
+
+  // Zone detection
+  const nb=getNetBox();
+  const nx1=nb.x-nb.w/2,ny1=nb.y-nb.h/2,nx2=nb.x+nb.w/2,ny2=nb.y+nb.h/2;
+  const mg=0.06;
+  const inX=puck.x>=nx1&&puck.x<=nx2,inY=puck.y>=ny1&&puck.y<=ny2;
+  const near=puck.x>=nx1-mg&&puck.x<=nx2+mg&&puck.y>=ny1-mg&&puck.y<=ny2+mg;
+  if(!near||now-lastShotTime<1200)return;
+  const normX=(puck.x-nx1)/(nx2-nx1),normY=(puck.y-ny1)/(ny2-ny1);
+  lastShotTime=now;
+  if(inX&&inY){const zone=ZONES.find(z=>normX>=z.xMin&&normX<z.xMax&&normY>=z.yMin&&normY<z.yMax);if(zone)registerGoal(zone,normX,normY);}
+  else{if(puck.y<ny1)registerMiss('miss-top');else if(puck.x<nx1)registerMiss('miss-left');else if(puck.x>nx2)registerMiss('miss-right');}
+}
+
+function endShotTracking(){
+  if(S.shotActive&&S.shotTrail.length>3){
+    S.lastShot={trail:[...S.shotTrail],maxSpeed:S.maxSpeed,zone:S.lastZone||'—',result:S.lastResult||'—',canvasW:canvas.width,canvasH:canvas.height};
+    $('replayBtn').style.display='block';
+  }
+  S.shotActive=false;S.shotTrail=[];
+}
+
+function registerGoal(zone,normX,normY){
+  S.goals++;S.zoneCounts[zone.id]++;$('sGoals').textContent=S.goals;
+  $('c-'+zone.id).textContent=S.zoneCounts[zone.id];
+  const zEl=$('z-'+zone.id);zEl.classList.add('hit');zEl.style.background=`rgba(0,220,255,${Math.min(0.08+S.zoneCounts[zone.id]*0.07,0.45)})`;
+  const dot=document.createElement('div');dot.className='sdot g';dot.style.left=(normX*100)+'%';dot.style.top=(normY*100)+'%';$('zonesGrid').appendChild(dot);
+  S.lastZone=zone.label;S.lastResult='GOAL';
+  showFlash('goal',zone.label);endShotTracking();
+}
+
+function registerMiss(type){
+  S.misses++;S.zoneCounts[type]++;$('sMiss').textContent=S.misses;
+  const ids={'miss-top':'missTopCount','miss-left':'missLeftCount','miss-right':'missRightCount'};
+  const labels={'miss-top':'MISS TOP','miss-left':'MISS SX','miss-right':'MISS DX'};
+  const elIds={'miss-top':'missTop','miss-left':'missLeft','miss-right':'missRight'};
+  if(ids[type])$(ids[type]).textContent=S.zoneCounts[type];
+  if(elIds[type])$(elIds[type]).classList.add('hit');
+  S.lastZone=labels[type];S.lastResult='MISS';
+  showFlash('miss',labels[type]||'MISS');endShotTracking();
+}
+
+function showFlash(type,label){
+  zoneFlash.className='zone-flash '+type;zoneFlash.style.opacity='1';
+  shotLabel.textContent=label;shotLabel.className=type;shotLabel.style.opacity='1';
+  setTimeout(()=>{zoneFlash.style.opacity='0';shotLabel.style.opacity='0';},700);
+}
+
+function noPuck(){confBadge.textContent='NO PUCK';confBadge.className='conf-badge';}
+function updateSpeedUI(kmh){speedNum.textContent=kmh;speedNum.className='speed-num'+(kmh>100?' fast':'');$('sSpeed').textContent=kmh;}
+
+// ── DRAW ──
+function drawOverlay(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const nb=getNetBox();
+  const nx=(nb.x-nb.w/2)*canvas.width,ny=(nb.y-nb.h/2)*canvas.height;
+  const nw=nb.w*canvas.width,nh=nb.h*canvas.height;
+  ctx.strokeStyle='rgba(204,34,0,0.6)';ctx.lineWidth=2;ctx.setLineDash([5,3]);
+  ctx.strokeRect(nx,ny,nw,nh);ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(0,220,255,0.15)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(nx+nw/2,ny);ctx.lineTo(nx+nw/2,ny+nh);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(nx,ny+nh/3);ctx.lineTo(nx+nw,ny+nh/3);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(nx,ny+nh*2/3);ctx.lineTo(nx+nw,ny+nh*2/3);ctx.stroke();
+  ctx.font='9px "JetBrains Mono"';ctx.fillStyle='rgba(0,220,255,0.25)';ctx.textAlign='center';
+  [{t:'TOP SX',x:nx+nw*.25,y:ny+11},{t:'TOP DX',x:nx+nw*.75,y:ny+11},
+   {t:'CTR SX',x:nx+nw*.25,y:ny+nh/2+4},{t:'CTR DX',x:nx+nw*.75,y:ny+nh/2+4},
+   {t:'BOT SX',x:nx+nw*.25,y:ny+nh-5},{t:'BOT DX',x:nx+nw*.75,y:ny+nh-5}]
+  .forEach(l=>ctx.fillText(l.t,l.x,l.y));ctx.textAlign='start';
+
+  // Shooting zone circle
+  if(CALIB.done&&CALIB.puckPos&&CALIB.shootZoneRadius){
+    const zx=CALIB.puckPos.x*canvas.width, zy=CALIB.puckPos.y*canvas.height;
+    const r=CALIB.shootZoneRadius;
+    const inZone=S.inShootZone;
+    ctx.beginPath();ctx.arc(zx,zy,r,0,Math.PI*2);
+    ctx.strokeStyle=inZone?'rgba(0,255,136,0.7)':'rgba(255,60,90,0.4)';
+    ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=inZone?'rgba(0,255,136,0.06)':'rgba(255,60,90,0.04)';
+    ctx.fill();
+    ctx.font='bold 10px "JetBrains Mono"';ctx.fillStyle=inZone?'rgba(0,255,136,0.6)':'rgba(255,60,90,0.4)';
+    ctx.textAlign='center';ctx.fillText('ZONA TIRO',zx,zy+r+14);ctx.textAlign='start';
+  }
+
+  // Trajectory
+  if(S.history.length<2)return;
+  for(let i=1;i<S.history.length;i++){
+    const a=S.history[i-1],b=S.history[i],alpha=i/S.history.length;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=b.predicted?`rgba(255,192,64,${alpha*0.7})`:`rgba(0,220,255,${alpha*0.8})`;
+    ctx.lineWidth=alpha*4;ctx.stroke();
+  }
+  const last=S.history[S.history.length-1];
+  ctx.beginPath();ctx.arc(last.x,last.y,last.predicted?12:14,0,Math.PI*2);
+  ctx.strokeStyle=last.predicted?'rgba(255,192,64,0.8)':'rgba(0,220,255,0.9)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(last.x,last.y,5,0,Math.PI*2);
+  ctx.fillStyle=last.predicted?'#ffc040':'#00dcff';ctx.fill();
+  if(S.velSmooth>0){ctx.font='bold 14px "JetBrains Mono"';ctx.fillStyle=S.velSmooth>100?'#ff3c5a':last.predicted?'#ffc040':'#00dcff';ctx.fillText(S.velSmooth+' km/h',last.x+18,last.y-10);}
+}
+
+// ── REPLAY ──
+function showReplay(){
+  if(!S.lastShot)return;
+  const shot=S.lastShot;
+  const W=Math.min(shot.canvasW,540),H=Math.round(W*(shot.canvasH/shot.canvasW));
+  rCanvas.width=W;rCanvas.height=H;
+  const sx=W/shot.canvasW,sy=H/shot.canvasH;
+  rCtx.fillStyle='#060e14';rCtx.fillRect(0,0,W,H);
+  const nb=getNetBox();
+  const nx=(nb.x-nb.w/2)*W,ny=(nb.y-nb.h/2)*H,nw=nb.w*W,nh=nb.h*H;
+  rCtx.strokeStyle='rgba(204,34,0,0.8)';rCtx.lineWidth=2;rCtx.strokeRect(nx,ny,nw,nh);
+  rCtx.strokeStyle='rgba(0,220,255,0.2)';rCtx.lineWidth=1;
+  rCtx.beginPath();rCtx.moveTo(nx+nw/2,ny);rCtx.lineTo(nx+nw/2,ny+nh);rCtx.stroke();
+  rCtx.beginPath();rCtx.moveTo(nx,ny+nh/3);rCtx.lineTo(nx+nw,ny+nh/3);rCtx.stroke();
+  rCtx.beginPath();rCtx.moveTo(nx,ny+nh*2/3);rCtx.lineTo(nx+nw,ny+nh*2/3);rCtx.stroke();
+  const trail=shot.trail;
+  for(let i=1;i<trail.length;i++){
+    const a=trail[i-1],b=trail[i],alpha=i/trail.length;
+    rCtx.beginPath();rCtx.moveTo(a.x*sx,a.y*sy);rCtx.lineTo(b.x*sx,b.y*sy);
+    rCtx.strokeStyle=b.predicted?`rgba(255,192,64,${alpha*0.9})`:`rgba(0,220,255,${alpha*0.9})`;
+    rCtx.lineWidth=alpha*5;rCtx.stroke();
+  }
+  if(trail.length>0){
+    const f=trail[0],l=trail[trail.length-1];
+    rCtx.beginPath();rCtx.arc(f.x*sx,f.y*sy,5,0,Math.PI*2);rCtx.fillStyle='rgba(0,220,255,0.5)';rCtx.fill();
+    rCtx.beginPath();rCtx.arc(l.x*sx,l.y*sy,8,0,Math.PI*2);
+    rCtx.fillStyle=shot.result==='GOAL'?'#00dcff':'#ff3c5a';rCtx.fill();
+    rCtx.strokeStyle='#fff';rCtx.lineWidth=2;rCtx.stroke();
+  }
+  $('replaySpeed').textContent=shot.maxSpeed;$('replayZone').textContent=shot.zone;
+  $('replayResult').textContent=shot.result;$('replayResult').className='replay-stat-v'+(shot.result==='GOAL'?'':' r');
+  $('replayOverlay').classList.add('visible');
+}
+function hideReplay(){$('replayOverlay').classList.remove('visible');}
+
+function resetStats(){
+  S.goals=0;S.misses=0;S.maxSpeed=0;S.velocity=0;S.velSmooth=0;
+  S.history=[];S.lastPos=null;S.lastTime=null;S.netBox=null;S.netSmooth=null;
+  S.vx=0;S.vy=0;S.lostFrames=0;S.shotActive=false;S.shotTrail=[];S.lastShot=null;
+  S.prevFrameData=null;S.inShootZone=false;
+  Object.keys(S.zoneCounts).forEach(k=>S.zoneCounts[k]=0);
+  ['sSpeed','sMax','sGoals','sMiss'].forEach(id=>$(id).textContent='0');
+  ['top-sx','top-dx','ctr-sx','ctr-dx','bot-sx','bot-dx'].forEach(id=>{$('c-'+id).textContent='0';$('z-'+id).classList.remove('hit');$('z-'+id).style.background='';});
+  ['missTopCount','missLeftCount','missRightCount'].forEach(id=>$(id).textContent='0');
+  ['missTop','missLeft','missRight'].forEach(id=>$(id).classList.remove('hit'));
+  speedNum.textContent='—';speedNum.className='speed-num';
+  $('zonesGrid').querySelectorAll('.sdot').forEach(d=>d.remove());
+  $('replayBtn').style.display='none';
+  zoneStatus.className='zone-status';
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ════════════════════════════════════════════
+//  CALIBRATION — 5 tap
+// ════════════════════════════════════════════
+const TAP_LABELS = [
+  'Angolo Alto Sinistra della porta',
+  'Angolo Alto Destra della porta',
+  'Angolo Basso Sinistra della porta',
+  'Angolo Basso Destra della porta',
+  'Puck a terra nella zona di tiro',
+];
+const CORNER_IDS = ['tl','tr','bl','br'];
+
+function selectGoalType(type){
+  CALIB.goalType=type;
+  ['nhl','street'].forEach(t=>$('gt-'+t).classList.toggle('selected',t===type));
+}
+
+async function startCalibCam(){
+  try{
+    const deviceId=$('camSel').value;
+    const constraints={video:deviceId
+      ?{deviceId:{exact:deviceId},width:{ideal:1280},height:{ideal:720}}
+      :{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}};
+    CALIB.calibStream=await navigator.mediaDevices.getUserMedia(constraints);
+    calibVideoEl.srcObject=CALIB.calibStream; await calibVideoEl.play();
+    calibVideoEl.addEventListener('loadedmetadata',()=>{
+      calibCanvas.width=calibVideoEl.videoWidth; calibCanvas.height=calibVideoEl.videoHeight;
+    },{once:true});
+    $('startCalibCamBtn').style.display='none';
+    CALIB.calibStep=1;
+    updateCalibUI();
+    calibCanvas.addEventListener('click', handleCalibTap);
+    drawCalibLoop();
+  }catch(e){alert('Camera error: '+e.message);}
+}
+
+function stopCalibCam(){
+  if(CALIB.calibStream){CALIB.calibStream.getTracks().forEach(t=>t.stop());CALIB.calibStream=null;}
+  calibCanvas.removeEventListener('click',handleCalibTap);
+}
+
+function drawCalibLoop(){
+  if(!CALIB.calibStream)return;
+  calibCtx.clearRect(0,0,calibCanvas.width,calibCanvas.height);
+  const W=calibCanvas.width,H=calibCanvas.height;
+
+  // Draw tapped dots
+  CALIB.corners.forEach((c,i)=>{
+    calibCtx.beginPath();calibCtx.arc(c.x*W,c.y*H,9,0,Math.PI*2);
+    calibCtx.fillStyle='#00ff88';calibCtx.fill();
+    calibCtx.strokeStyle='#fff';calibCtx.lineWidth=2;calibCtx.stroke();
+    calibCtx.font='bold 11px monospace';calibCtx.fillStyle='#000';
+    calibCtx.textAlign='center';calibCtx.textBaseline='middle';
+    calibCtx.fillText(i+1,c.x*W,c.y*H);
+    calibCtx.textAlign='start';calibCtx.textBaseline='alphabetic';
+  });
+
+  // Draw puck position
+  if(CALIB.puckPos){
+    const px=CALIB.puckPos.x*W,py=CALIB.puckPos.y*H;
+    calibCtx.beginPath();calibCtx.arc(px,py,9,0,Math.PI*2);
+    calibCtx.fillStyle='#ffc040';calibCtx.fill();
+    calibCtx.strokeStyle='#fff';calibCtx.lineWidth=2;calibCtx.stroke();
+    calibCtx.font='bold 10px monospace';calibCtx.fillStyle='#000';
+    calibCtx.textAlign='center';calibCtx.textBaseline='middle';
+    calibCtx.fillText('5',px,py);
+    calibCtx.textAlign='start';calibCtx.textBaseline='alphabetic';
+    // Draw shooting zone circle
+    if(CALIB.shootZoneRadius){
+      const r=CALIB.shootZoneRadius*(W/canvas.width);
+      calibCtx.beginPath();calibCtx.arc(px,py,r,0,Math.PI*2);
+      calibCtx.strokeStyle='rgba(255,192,64,0.6)';calibCtx.lineWidth=2;calibCtx.setLineDash([5,4]);
+      calibCtx.stroke();calibCtx.setLineDash([]);
+      calibCtx.fillStyle='rgba(255,192,64,0.05)';calibCtx.fill();
+    }
+  }
+
+  // Draw net box overlay
+  if(CALIB.corners.length===4){
+    const nb=computeNetBox();
+    const nx=(nb.x-nb.w/2)*W,ny=(nb.y-nb.h/2)*H,nw=nb.w*W,nh=nb.h*H;
+    calibCtx.strokeStyle='rgba(0,220,255,0.7)';calibCtx.lineWidth=2;calibCtx.setLineDash([5,3]);
+    calibCtx.strokeRect(nx,ny,nw,nh);calibCtx.setLineDash([]);
+    calibCtx.strokeStyle='rgba(0,220,255,0.25)';calibCtx.lineWidth=1;
+    calibCtx.beginPath();calibCtx.moveTo(nx+nw/2,ny);calibCtx.lineTo(nx+nw/2,ny+nh);calibCtx.stroke();
+    calibCtx.beginPath();calibCtx.moveTo(nx,ny+nh/3);calibCtx.lineTo(nx+nw,ny+nh/3);calibCtx.stroke();
+    calibCtx.beginPath();calibCtx.moveTo(nx,ny+nh*2/3);calibCtx.lineTo(nx+nw,ny+nh*2/3);calibCtx.stroke();
+  }
+
+  requestAnimationFrame(drawCalibLoop);
+}
+
+function handleCalibTap(e){
+  if(CALIB.calibStep<1||CALIB.calibStep>5)return;
+  const rect=calibCanvas.getBoundingClientRect();
+  const scaleX=calibCanvas.width/rect.width, scaleY=calibCanvas.height/rect.height;
+  const nx=(e.clientX-rect.left)*scaleX/calibCanvas.width;
+  const ny=(e.clientY-rect.top)*scaleY/calibCanvas.height;
+
+  if(CALIB.calibStep<=4){
+    CALIB.corners.push({x:nx,y:ny});
+    const marker=$('cm-'+CORNER_IDS[CALIB.calibStep-1]);
+    if(marker)marker.classList.add('done');
+  } else {
+    // Tap 5 = puck position
+    CALIB.puckPos={x:nx,y:ny};
+  }
+
+  // Update tap item UI
+  const ti=$('ti-'+(CALIB.calibStep-1));
+  if(ti){ti.classList.remove('active');ti.classList.add('done');ti.querySelector('.tap-check').textContent='✓';}
+
+  CALIB.calibStep++;
+  if(CALIB.calibStep<=5){
+    const next=$('ti-'+(CALIB.calibStep-1));
+    if(next)next.classList.add('active');
+  }
+  updateCalibUI();
+
+  if(CALIB.calibStep>5) computeAndShowResult();
+}
+
+function computeNetBox(){
+  const c=CALIB.corners;
+  if(c.length<4)return{x:0.5,y:0.5,w:0.5,h:0.3};
+  const minX=Math.min(c[0].x,c[2].x), maxX=Math.max(c[1].x,c[3].x);
+  const minY=Math.min(c[0].y,c[1].y), maxY=Math.max(c[2].y,c[3].y);
+  return{x:(minX+maxX)/2,y:(minY+maxY)/2,w:maxX-minX,h:maxY-minY};
+}
+
+function computeAndShowResult(){
+  const gt=GOAL_TYPES[CALIB.goalType];
+  const nb=computeNetBox();
+  CALIB.netBox=nb;
+
+  // px/cm from goal width
+  const netPxW=nb.w*calibCanvas.width;
+  const pxPerCm=netPxW/gt.w;
+  CALIB.pxPerCm=pxPerCm;
+
+  // Shooting distance — using perspective geometry
+  // The goal appears smaller when farther away
+  // focal_length ≈ (netPxW * distanceCm) / goalWidthCm → we don't know dist
+  // Instead: use the puck tap Y position relative to goal bottom
+  // to estimate distance via the known goal height
+  let shootDistCm = null;
+  if(CALIB.puckPos){
+    // Vertical pixel difference between goal bottom and puck
+    const goalBottomY=(nb.y+nb.h/2)*calibCanvas.height;
+    const puckY=CALIB.puckPos.y*calibCanvas.height;
+    const deltaYPx=puckY-goalBottomY; // pixels below goal bottom line
+    if(deltaYPx>0){
+      // Using perspective: objects on ground shrink proportionally with distance
+      // goal bottom is at ground level at distance D
+      // puck appears deltaYPx below goal base → it's further forward
+      // Estimate: 1cm on ground ≈ pxPerCm at that plane
+      // This is approximate — good enough for zone detection
+      shootDistCm = deltaYPx / pxPerCm * 2.5; // empirical factor
+    }
+  }
+  CALIB.shootDistCm=shootDistCm||400;
+
+  // Shooting zone radius in pixels (~80cm radius)
+  CALIB.shootZoneRadius=80*pxPerCm*0.6; // scaled for perspective
+
+  $('metricPxCm').textContent=pxPerCm.toFixed(1);
+  $('metricDist').textContent=CALIB.shootDistCm?Math.round(CALIB.shootDistCm/100*10)/10:'-';
+  $('metricZone').textContent=Math.round(CALIB.shootZoneRadius*2);
+
+  $('calibResult').classList.add('visible');
+  $('confirmCalibBtn').classList.add('visible');
+  updateStepInd(4);
+}
+
+function confirmCalib(){
+  CALIB.done=true;
+  S.netBox=CALIB.netBox;
+  $('calibStatusBtn').className='calib-btn calibrated';
+  $('calibBtnText').textContent='CALIBRATO';
+  $('noCalibWarn').style.display='none';
+  initAudio();
+  goToTracker();
+}
+
+function resetCalib(){
+  CALIB.corners=[];CALIB.puckPos=null;CALIB.netBox=null;
+  CALIB.pxPerCm=null;CALIB.shootDistCm=null;CALIB.shootZoneRadius=null;
+  CALIB.done=false;CALIB.calibStep=CALIB.calibStream?1:0;
+  CORNER_IDS.forEach(id=>{const el=$('cm-'+id);if(el)el.classList.remove('done');});
+  for(let i=0;i<5;i++){const ti=$('ti-'+i);if(ti){ti.classList.remove('done','active');ti.querySelector('.tap-check').textContent='';}}
+  if(CALIB.calibStep===1){const ti=$('ti-0');if(ti)ti.classList.add('active');}
+  $('calibResult').classList.remove('visible');
+  $('confirmCalibBtn').classList.remove('visible');
+  $('calibStatusBtn').className='calib-btn uncalibrated';
+  $('calibBtnText').textContent='CALIBRA';
+  if(calibCtx)calibCtx.clearRect(0,0,calibCanvas.width,calibCanvas.height);
+  updateCalibUI();
+}
+
+function updateCalibUI(){
+  const step=CALIB.calibStep;
+  // Step indicators
+  const stepMap={0:1,1:2,2:2,3:2,4:2,5:3,6:4};
+  updateStepInd(stepMap[step]||1);
+  // Tap items active state
+  if(step>=1&&step<=5){
+    const ti=$('ti-'+(step-1));if(ti)ti.classList.add('active');
+  }
+  // Hint text
+  const hint=$('tapHint'),hintText=$('tapHintText');
+  if(step>=1&&step<=5&&CALIB.calibStream){
+    hint.style.display='flex';
+    hintText.textContent=step<=4?`Tocca ${step}/4: ${TAP_LABELS[step-1]}`:'Tocca il puck a terra (tap 5/5)';
+  } else { hint.style.display='none'; }
+}
+
+function updateStepInd(current){
+  for(let i=1;i<=4;i++){
+    const el=$('sInd'+i);if(!el)continue;
+    el.classList.remove('active','done');
+    if(i===current)el.classList.add('active');
+    else if(i<current)el.classList.add('done');
+  }
+}
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+boot();
+</script>
+</body>
+</html>
